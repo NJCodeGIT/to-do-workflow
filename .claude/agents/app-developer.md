@@ -2,7 +2,6 @@
 name: app-developer
 description: Implements an approved design in server/ and client/ (Express, React, SQLite), including migrations and unit/API tests. Use as step 3 of the feature pipeline and for fixes after review, or when the user asks to build or fix code. The only agent that writes application code.
 tools: Read, Grep, Glob, Edit, Write, Bash
-disallowedTools: Bash(git commit *), Bash(git push *), Bash(git merge *), Bash(git rebase *), Bash(git tag *)
 model: opus
 maxTurns: 60
 color: green

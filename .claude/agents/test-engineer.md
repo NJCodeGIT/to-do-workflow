@@ -2,7 +2,6 @@
 name: test-engineer
 description: Writes, runs, and maintains automated tests: unit/API (Vitest, supertest), component (Testing Library), and E2E (Playwright). Use as step 4 of the feature pipeline, as the first step of the bug-fix path, or when the user asks to add tests or fix flaky ones. Edits test files only.
 tools: Read, Grep, Glob, Edit, Write, Bash
-disallowedTools: Bash(git commit *), Bash(git push *), Bash(git merge *), Bash(git rebase *), Bash(git tag *)
 model: sonnet
 maxTurns: 40
 color: yellow

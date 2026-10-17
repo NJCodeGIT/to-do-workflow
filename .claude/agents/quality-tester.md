@@ -2,7 +2,7 @@
 name: quality-tester
 description: Read-only review of a change: code review, security review, accessibility review, and verification against acceptance criteria. Use as step 5 of the feature pipeline, or when the user asks to review, audit, or QA a diff or branch. Reports findings; never edits files.
 tools: Read, Grep, Glob, Bash
-disallowedTools: Edit, Write, Bash(git commit *), Bash(git push *), Bash(git merge *), Bash(git rebase *), Bash(git tag *)
+disallowedTools: Edit, Write
 model: opus
 maxTurns: 40
 color: red
