@@ -19,6 +19,7 @@ describe('health and fallback routes', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     db.close();
   });
 
@@ -56,7 +57,7 @@ describe('health and fallback routes', () => {
   });
 
   it('unexpected errors return a generic 500 JSON without leaking details', async () => {
-    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     const failing = express();
     failing.get('/boom', () => {
       throw new Error('secret internal detail');
@@ -68,7 +69,6 @@ describe('health and fallback routes', () => {
       error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     });
     expect(res.text).not.toContain('secret internal detail');
-    spy.mockRestore();
   });
 
   it('typed AppError maps to its status and code', async () => {
