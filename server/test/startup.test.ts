@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createServer } from 'node:net';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -11,19 +12,45 @@ const serverDir = fileURLToPath(new URL('..', import.meta.url));
 // so the machine env cannot change the result.
 // cwd is the server dir so tsx resolves; the entry never loads a .env itself (only the npm
 // scripts pass --env-file-if-exists), so no real .env is read.
-function runServer(extraEnv: Record<string, string>) {
+// PORT is a free port found by the test (loadConfig rejects PORT=0), so if fail-fast ever
+// regressed the child could not bind 3001; the short timeout stops a child that keeps running
+// from hanging the suite.
+let freePort = '0';
+
+function findFreePort(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address();
+      const port = typeof addr === 'object' && addr ? addr.port : 0;
+      srv.close(() => resolve(String(port)));
+    });
+  });
+}
+
+beforeAll(async () => {
+  freePort = await findFreePort();
+});
+
+function runServer(extraEnv: Record<string, string>, extraNodeArgs: string[] = []) {
   const env: NodeJS.ProcessEnv = { ...process.env };
   delete env.JWT_SECRET;
   delete env.JWT_EXPIRES_IN;
-  delete env.PORT;
   delete env.DATABASE_PATH;
+  env.PORT = freePort;
   Object.assign(env, extraEnv);
-  return spawnSync(process.execPath, ['--import', 'tsx', join(serverDir, 'src/index.ts')], {
-    cwd: serverDir,
-    env,
-    encoding: 'utf8',
-    timeout: 30_000,
-  });
+  return spawnSync(
+    process.execPath,
+    ['--import', 'tsx', ...extraNodeArgs, join(serverDir, 'src/index.ts')],
+    {
+      cwd: serverDir,
+      env,
+      encoding: 'utf8',
+      timeout: 10_000,
+      killSignal: 'SIGKILL',
+    },
+  );
 }
 
 describe('server startup fails fast on bad auth config', () => {
@@ -76,6 +103,22 @@ describe('server startup fails fast on bad auth config', () => {
     expect(res.stderr).toContain('Invalid JWT_EXPIRES_IN: 31d');
     expect(res.stdout).not.toContain(FAKE_VALID);
     expect(res.stderr).not.toContain(FAKE_VALID);
+    expect(existsSync(dbDir)).toBe(false);
+  });
+
+  it('password-hashing warm-up failure: exit 1, generic message only, no DB created', () => {
+    // The preload makes argon2.hash reject with a marker message; the entry must not print it.
+    const preload = join(serverDir, 'test/fixtures/fail-argon2-hash.mjs');
+    const res = runServer({ JWT_SECRET: FAKE_VALID, DATABASE_PATH: dbPath }, ['--import', preload]);
+    expect(res.error).toBeUndefined();
+    expect(res.status).toBe(1);
+    expect(res.stderr.trim()).toBe('Startup error: could not initialise password hashing.');
+    expect(res.stdout).not.toContain('API listening');
+    for (const out of [res.stdout, res.stderr]) {
+      expect(out).not.toContain(FAKE_VALID);
+      expect(out).not.toContain('warmup-failure-marker-xyz');
+    }
+    expect(existsSync(dbPath)).toBe(false);
     expect(existsSync(dbDir)).toBe(false);
   });
 });
