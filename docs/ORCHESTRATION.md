@@ -56,7 +56,11 @@ The orchestrator verifies the section exists and is non-empty before the next st
 | delivery-operator | delivery-operator | Read, Grep, Glob, Edit, Write, Bash | `.github/`, config, `docs/` | sonnet |
 
 - Definitions live in `.claude/agents/<name>.md`; each preloads its skill via `skills:`.
-- Tool limits enforce roles. Agents with Bash also deny `git commit/push/merge/rebase/tag`.
+- Tool limits enforce roles (quality-tester has no Edit/Write).
+- Do NOT put `Bash(...)` patterns in `disallowedTools`: in this runtime that removed `Bash`
+  entirely (found in the S-001 dry run), leaving app-developer, test-engineer, quality-tester,
+  and delivery-operator without a shell. The ban on `git commit/push/merge/rebase/tag` is
+  written in each agent's Limits section instead (prompt-level, not tool-enforced).
 - `quality-tester` has no write tools: it returns its review (ending in
   `Verdict: pass|fix-needed`) and the orchestrator saves it into `## Review`.
 - Model choices are suggestions and can be changed in each file's `model:` field.
