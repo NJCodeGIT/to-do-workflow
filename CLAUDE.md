@@ -12,13 +12,15 @@ and filter their own tasks by status. Monorepo with a REST API and an SPA.
 - Server: Node + Express, TypeScript (`server/`)
 - DB: SQLite via `better-sqlite3` (single file, no Docker)
 - Auth: email + password (argon2 hash), JWT bearer token
-- Validation: zod. Tests: Vitest. Lint/format: ESLint + Prettier. Package manager: npm workspaces
+- Validation: zod. Tests: Vitest, Playwright for E2E (planned). Lint/format: ESLint + Prettier
+- Package manager: npm workspaces
 
 ## Commands (run from repo root) `[unverified]`
 - Install: `npm install`
 - Dev (API + client): `npm run dev`
 - Dev server only / client only: `npm run dev -w server` / `npm run dev -w client`
 - Test: `npm test` (all) or `npm test -w server`
+- E2E (planned, needs Playwright): `npm run test:e2e`
 - Lint: `npm run lint` · Format: `npm run format`
 - Typecheck: `npm run typecheck`
 - Build: `npm run build`
@@ -69,4 +71,6 @@ and filter their own tasks by status. Monorepo with a REST API and an SPA.
 - Conventions (detail): `docs/CONVENTIONS.md`
 - CI/CD: `docs/CICD.md`
 - Decisions log: `docs/DECISIONS.md`
+- Backlog (stories, acceptance criteria): `docs/BACKLOG.md`
+- UI wireframes and flows: `docs/UI_SPEC.md`
 - Update the relevant doc in the same change as the code it describes.
