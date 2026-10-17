@@ -2,20 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import type Database from 'better-sqlite3';
 import express, { type Express } from 'express';
-import { createApp } from '../src/app.js';
 import { AppError } from '../src/errors.js';
 import { errorHandler } from '../src/middleware/error-handler.js';
-import { openDatabase } from '../src/db/connection.js';
-import { runMigrations } from '../src/db/migrate.js';
+import { makeTestApp } from './helpers.js';
 
 describe('health and fallback routes', () => {
   let db: Database.Database;
   let app: Express;
 
   beforeEach(() => {
-    db = openDatabase(':memory:');
-    runMigrations(db);
-    app = createApp({ db });
+    ({ app, db } = makeTestApp());
   });
 
   afterEach(() => {
