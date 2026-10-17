@@ -11,8 +11,12 @@
 - Auth: register/login return a JWT; client sends `Authorization: Bearer <token>`.
   - Passwords: argon2id (`argon2` package), parameters pinned in
     `server/src/auth/password.ts` (`memoryCost 65536` KiB, `timeCost 3`, `parallelism 4`).
-    Login with an unknown email still runs one `argon2.verify` against a dummy hash so
-    both 401 paths take similar time.
+    Login with an unknown email still runs one `argon2.verify` against a dummy hash, so an
+    unknown email and a wrong password both cost one verify. The dummy hash is computed at
+    server startup (`warmDummyHash`, called in `index.ts` after config validation and before
+    the DB opens); if that fails the server exits 1 with `Startup error: could not
+    initialise password hashing.` A failed hash is not cached (the next call retries). An app
+    built with `createApp` alone (tests) computes the dummy hash on first use instead.
   - Tokens: `server/src/auth/token.ts` signs HS256 JWTs (`sub` = user id string, `iat`,
     `exp`) and verifies with `algorithms: ['HS256']` only; `exp` is required.
   - Middleware `requireAuth` (`server/src/middleware/require-auth.ts`) parses the Bearer
@@ -27,7 +31,7 @@
     `UNIQUE COLLATE NOCASE` constraint (no pre-check), mapped to `409 EMAIL_TAKEN`.
 - Authorization: all task access is scoped by the `user_id` in the token.
 - Runtime: Node 22 (`.nvmrc`), ESM everywhere (`"type": "module"`).
-- Server wiring: `server/src/index.ts` (entry: config, open DB, listen) ->
+- Server wiring: `server/src/index.ts` (entry: config, hash warm-up, open DB, listen) ->
   `createApp({ db, auth })` in `server/src/app.ts` (routes, 404, error handler). The DB
   handle is stored on `app.locals.db` and read through a typed helper in `server/src/db/`;
   the auth config (`{ jwtSecret, jwtExpiresInSeconds }`) is stored on `app.locals.auth`

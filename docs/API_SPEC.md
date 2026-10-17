@@ -32,8 +32,10 @@ Base path `/api/v1`. JSON bodies. Task routes require `Authorization: Bearer <jw
 - Malformed JSON, a too-large body, or an unsupported encoding/charset:
   `400 {"error":{"code":"VALIDATION_ERROR","message":"Invalid request body"}}`. This also
   applies to such a body sent to an unknown `/api/v1` path (body parsing runs first).
-- A missing body, a non-JSON content type, or a JSON value that is not an object (e.g. `[]`)
-  fails schema validation: `400 VALIDATION_ERROR`.
+- A JSON primitive such as `null` or a string (e.g. `"nope"`) is rejected by the parser:
+  `400 VALIDATION_ERROR` `Invalid request body`.
+- A missing body, a non-JSON content type, or a JSON array (`[]`) fails schema validation:
+  `400 VALIDATION_ERROR` `Request body must be a JSON object`.
 - Unknown extra fields are ignored (stripped), not rejected.
 - Validation errors return the message of the first failing rule, in field order
   (`email` before `password`).

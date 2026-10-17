@@ -45,12 +45,12 @@ Acceptance:
 - Register: `POST /api/v1/auth/register {email, password}` with valid input returns `201 {user:{id,email}, token}`; the response never contains the password or hash; the stored value is an argon2 hash, not the password.
 - Given an email already registered, register returns `409 EMAIL_TAKEN`; the same email in different case (`A@x.com` vs `a@x.com`) also returns 409.
 - Email is stored and returned trimmed; login with different case or surrounding whitespace succeeds.
-- Invalid body returns `400 VALIDATION_ERROR` for: missing or non-string email/password, malformed email, password shorter than the minimum (assumed 8, see open questions), empty body, non-JSON body. No user row is created.
+- Invalid body returns `400 VALIDATION_ERROR` for: missing or non-string email/password, malformed email, password shorter than 8 or longer than 128 characters, empty body, non-JSON body. No user row is created.
 - Login: valid credentials return `200 {user:{id,email}, token}`.
 - Unknown email and wrong password both return `401 UNAUTHORIZED` with the identical body (same code and message); login with a missing field returns 400.
 - Token: signed with `JWT_SECRET`, carries the user id and an expiry; a token from register and one from login both pass the middleware.
 - Auth middleware: no `Authorization` header, a non-Bearer scheme, a malformed token, a token with a bad signature, and an expired token each return `401 UNAUTHORIZED` in the standard error envelope; a valid token sets the user id from the token only (never from body, query, or params).
-- A token for a user that no longer exists returns 401 (decision needed, see open questions).
+- Deferred (Gate A, `docs/DECISIONS.md` row 22): a token for a user that no longer exists stays valid until it expires; no per-request user lookup, and no account deletion exists yet.
 - Server fails fast at startup with a clear message if `JWT_SECRET` is missing or shorter than the minimum length; the message does not print the value.
 - No log line or response contains a password, hash, or token (checked in tests where feasible).
 - A protected probe is needed to test the middleware end to end: tests mount the middleware on a test-only route; no task endpoints are added.
@@ -66,7 +66,7 @@ Tasks:
 7. [document-writer] Update `CLAUDE.md` status and folder notes, verify docs match behavior.
 8. [delivery-operator] Secrets hygiene check (no real secret committed), release checklist; CI needs no change unless CI lacks `JWT_SECRET` for tests (tests should set it themselves).
 Dependencies needing Gate A approval: server runtime `argon2`, `jsonwebtoken`, `zod`; server dev `@types/jsonwebtoken` (`argon2` ships its own types; `zod` too). Beyond the recorded stack: none (all three are named in CLAUDE.md; `jsonwebtoken` is implied by "JWT").
-Open questions: password policy beyond min length; token lifetime; minimum `JWT_SECRET` length; stale-token-for-deleted-user behavior; confirm that the existing `users` table (unique, NOCASE email) is sufficient.
+Resolved at Gate A: password min 8 / max 128, no complexity rules; token lifetime 24h (`JWT_EXPIRES_IN`); client token storage `localStorage` (S-004); `JWT_SECRET` min 32 characters; deleted-user token deferred (row 22); register returns a token; account enumeration via 409 accepted; split into S-003/S-004 approved (task stories become S-005+). The existing `users` table was sufficient (no migration).
 
 ## S-004 Client auth: register, login, logout, route guard  [Must]
 Story: As a visitor, I want register and login pages and a way to log out, so that I can use the app with my own account and unauthenticated users cannot reach private pages.
