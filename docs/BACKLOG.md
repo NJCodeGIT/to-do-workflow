@@ -24,3 +24,17 @@ Tasks:
 10. [delivery-operator] Secrets/ignore hygiene and release checklist; no CI.
 Dependencies needing Gate A approval (full list in `work/S-001.md`): server `express`, `better-sqlite3`; client `react`, `react-dom`, `vite`, `@vitejs/plugin-react`; shared `typescript`, `eslint`, `prettier`, `vitest`, type packages. Beyond the recorded stack (flagged): `typescript-eslint` family, `eslint-config-prettier`, `concurrently`, `tsx`, `supertest`, `@testing-library/*`, `jsdom`.
 Open questions: Node version to pin; approval of flagged extra dependencies; ports (assumed 3001 API, 5173 client); `.env.example` contents (assumed `PORT`, `DATABASE_PATH` only).
+
+## S-002 CI workflow  [Must]
+Story: As a developer, I want a GitHub Actions workflow that runs the local checks on every pull request and push to `main`, so that failures are visible before merge.
+Acceptance:
+- `.github/workflows/ci.yml` exists, is valid YAML, and every `run:` command exists in the root `package.json` scripts.
+- Triggers are `pull_request` and `push` to `main`; `permissions` is `contents: read`; actions are pinned to full commit SHAs with version comments; `concurrency` (cancel superseded runs) and `timeout-minutes` are set.
+- One job on `ubuntu-latest`, Node from `.nvmrc`, npm cache; steps in order: `npm ci`, `lint`, `format:check`, `typecheck`, `test`, `build`.
+- The same commands pass locally from a clean `npm ci`; the workflow run on the PR for this branch succeeds.
+- `docs/CICD.md` matches the workflow; no application code, dependencies, or secrets changed.
+Out of scope: E2E job, deployment/CD, Dependabot, Node version matrix, coverage reporting, `npm audit` gate, branch protection / required status checks (repository settings a human enables; listed in `docs/CICD.md`).
+Tasks:
+1. [delivery-operator] Add `ci.yml`, update `docs/CICD.md`, verify commands locally.
+2. [quality-tester] Review against criteria.
+3. [human] Open PR, confirm the run is green, enable required check and branch protection.
