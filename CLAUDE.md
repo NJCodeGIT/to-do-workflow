@@ -3,9 +3,8 @@
 Minimal to-do web app: users register/login, then create, edit, delete, complete,
 and filter their own tasks by status. Monorepo with a REST API and an SPA.
 
-> **Status: pre-scaffold.** No code exists yet. Commands below are the *planned*
-> scripts (marked `[unverified]`). Verify against `package.json` once scaffolded,
-> then remove the markers.
+> **Status: scaffolded (S-001).** The monorepo runs: health endpoint, SQLite migration
+> runner, placeholder client page. Auth, tasks, and E2E are not built yet.
 
 ## Stack
 - Client: React + Vite, TypeScript (`client/`)
@@ -15,28 +14,36 @@ and filter their own tasks by status. Monorepo with a REST API and an SPA.
 - Validation: zod. Tests: Vitest, Playwright for E2E (planned). Lint/format: ESLint + Prettier
 - Package manager: npm workspaces
 
-## Commands (run from repo root) `[unverified]`
-- Install: `npm install`
-- Dev (API + client): `npm run dev`
-- Dev server only / client only: `npm run dev -w server` / `npm run dev -w client`
-- Test: `npm test` (all) or `npm test -w server`
-- E2E (planned, needs Playwright): `npm run test:e2e`
-- Lint: `npm run lint` · Format: `npm run format`
-- Typecheck: `npm run typecheck`
-- Build: `npm run build`
-- Migrate: `npm run migrate -w server`
+## Commands (run from repo root)
+Commands were run and checked in S-001.
+- Setup: `nvm use` (reads `.nvmrc`; Node `^22.13.0`), then `npm install`.
+  Optional: `cp .env.example .env` (`PORT`, `DATABASE_PATH`; defaults work without it).
+  Without a `.env`, Node prints `../.env not found. Continuing without it.`; it is harmless.
+- Dev (API + client): `npm run dev` (API `http://localhost:3001`, client `http://localhost:5173`;
+  Vite proxies `/api` to the API). A taken port makes it exit with an error.
+- Dev server only / client only: `npm run dev:server` / `npm run dev:client`
+  (same as `npm run dev -w server` / `npm run dev -w client`)
+- Test: `npm test` (all), `npm test -w server`, or `npm test -w client`
+- E2E (planned, not installed; needs Playwright): `npm run test:e2e`
+- Lint: `npm run lint` · Format: `npm run format` · Format check: `npm run format:check`
+  (lint and format are root-only, no `-w` form)
+- Typecheck: `npm run typecheck` · Build: `npm run build` (both also work with `-w server|client`)
+- Run built server: `npm run build` then `npm run start -w server`
+- Migrate: `npm run migrate` (same as `npm run migrate -w server`); manual only, not run on start
 - No Docker in this project.
 
 ## Folder structure
+- `server/src/index.ts` – entry; `app.ts` – `createApp({ db })`; `config.ts` – env config;
+  `errors.ts` – `AppError`
 - `server/src/routes/` – URL + middleware wiring only
 - `server/src/controllers/` – parse request, call data layer, shape response
-- `server/src/db/` – connection, queries (all SQL lives here)
-- `server/src/middleware/` – auth (JWT), error handler
-- `server/src/schemas.ts` – zod request schemas
+- `server/src/db/` – connection, migration runner, queries (all SQL lives here)
+- `server/src/middleware/` – 404 and error handler (auth/JWT comes with the auth story)
 - `server/migrations/` – numbered `.sql` files (`001_init.sql`, ...)
+- `server/scripts/` – dev-only helpers (`check-port.ts`); `server/test/` – Vitest tests
 - `client/src/api.ts` – the only place that calls `fetch`
-- `client/src/auth/` – auth context, login/register pages
-- `client/src/tasks/` – task list, item, form, status filter
+- `client/src/` also holds `main.tsx`, `App.tsx`, and tests (`App.test.tsx`, `test/setup.ts`)
+- Planned, not created yet: `server/src/schemas.ts` (zod), `client/src/auth/`, `client/src/tasks/`
 - `docs/` – detailed docs (see below)
 
 ## Architecture rules

@@ -12,6 +12,10 @@ test-results/
 *.db
 *.db-journal
 *.sqlite
+*.db-wal
+*.db-shm
+*.tsbuildinfo
+server/data/
 
 # per-story handoff files (keep only the template)
 work/*
