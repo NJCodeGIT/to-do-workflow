@@ -62,7 +62,8 @@ The orchestrator verifies the section exists and is non-empty before the next st
 - Model choices are suggestions and can be changed in each file's `model:` field.
 
 ## Orchestrator rules
-- Never commit, merge, push to `main`, tag, or deploy. Stop at Gate C.
+- Never merge, push to `main`, tag, or deploy. Commit only after explicit approval at
+  Gate C, on the feature branch. Subagents never commit.
 - Stop and ask the user on: ambiguous requirements, a spec conflicting with
   `docs/DECISIONS.md`, a needed new dependency, or two failed fix rounds.
 - Report real results: failing tests and skipped stages are shown, not hidden.
