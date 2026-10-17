@@ -16,6 +16,9 @@
 ## Testing
 - Vitest. Server: API tests via supertest against the Express app with in-memory SQLite.
 - Client: component tests with Testing Library for forms and the status filter.
+- E2E (planned): Playwright in `e2e/`, 3-5 smoke flows only, role/label locators, no fixed sleeps,
+  fresh temporary SQLite file per run, axe accessibility check on key pages.
+- Most coverage stays at unit/API level; E2E never duplicates it.
 - Every bug fix gets a regression test.
 
 ## Git
