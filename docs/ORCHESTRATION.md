@@ -61,6 +61,13 @@ The orchestrator verifies the section exists and is non-empty before the next st
   entirely (found in the S-001 dry run), leaving app-developer, test-engineer, quality-tester,
   and delivery-operator without a shell. The ban on `git commit/push/merge/rebase/tag` is
   written in each agent's Limits section instead (prompt-level, not tool-enforced).
+  Verified after the fix: test-engineer, app-developer, delivery-operator, and quality-tester
+  all run Bash.
+- quality-tester has Bash (it must run tests) but no Edit/Write. Bash can still modify files,
+  so its read-only status rests on its Limits section, not on the tool list. A PreToolUse hook
+  could enforce it later.
+- Edits to `.claude/agents/*.md` are picked up after a context reload (`register_repo_root`
+  for the repo) or a new session; a running session keeps the old definitions until then.
 - `quality-tester` has no write tools: it returns its review (ending in
   `Verdict: pass|fix-needed`) and the orchestrator saves it into `## Review`.
 - Model choices are suggestions and can be changed in each file's `model:` field.
