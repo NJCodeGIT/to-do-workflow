@@ -15,9 +15,14 @@
   upload the Playwright report as an artifact on failure), once Playwright is added.
 
 ## Repository settings (a human must enable; not changed by the workflow)
-- After the first run, make the `CI / check` status check required for `main`.
+- After the first run, make the `check` status check required for `main`. The check is named
+  `check` (shown as "CI / check" on pull requests); select `check` as the required status check.
 - Branch protection on `main`: require a pull request before merging, require status checks to pass
   (and branches up to date), block direct pushes and force pushes.
+- Current limitation: branch protection and required checks are unavailable on this repository's
+  plan (GitHub returns 403; needs GitHub Pro/Team or a public repo). Until then CI is advisory: a
+  failing `check` does not block a merge, and nothing technically blocks direct pushes to `main`.
+  The rules in `CLAUDE.md` are the only barrier meanwhile.
 
 ## CD
 - Not defined yet. Claude must not deploy or trigger deployments.
