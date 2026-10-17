@@ -1,0 +1,18 @@
+# dependencies and build output
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+
+# secrets and local data
+.env
+.env.*
+!.env.example
+*.db
+*.db-journal
+*.sqlite
+
+# per-story handoff files (keep only the template)
+work/*
+!work/TEMPLATE.md
