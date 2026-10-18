@@ -24,6 +24,11 @@ CREATE TABLE tasks (
 CREATE INDEX idx_tasks_user_status ON tasks (user_id, status, created_at DESC);
 ```
 
+- `users.email` is stored trimmed and lowercased by the app; `COLLATE NOCASE` on the
+  `UNIQUE` constraint is kept as a backstop. A unique violation on insert
+  (`SQLITE_CONSTRAINT_UNIQUE`) is mapped to `409 EMAIL_TAKEN` in `server/src/db/users.ts`.
+  `password_hash` holds the full argon2id encoded string (`$argon2id$...`). No migration
+  was needed for auth (S-003).
 - Timestamps are ISO-8601 UTC strings.
 - `completed_at` is set when status becomes `completed`, cleared on reopen.
 - `updated_at` is set by the app on every update.

@@ -3,8 +3,9 @@
 Minimal to-do web app: users register/login, then create, edit, delete, complete,
 and filter their own tasks by status. Monorepo with a REST API and an SPA.
 
-> **Status: scaffolded (S-001).** The monorepo runs: health endpoint, SQLite migration
-> runner, placeholder client page. Auth, tasks, and E2E are not built yet.
+> **Status: server auth built (S-003).** The monorepo runs: health endpoint, SQLite migration
+> runner, register/login endpoints and JWT middleware, placeholder client page.
+> Client auth (S-004), tasks, and E2E are not built yet.
 
 ## Stack
 - Client: React + Vite, TypeScript (`client/`)
@@ -15,10 +16,14 @@ and filter their own tasks by status. Monorepo with a REST API and an SPA.
 - Package manager: npm workspaces
 
 ## Commands (run from repo root)
-Commands were run and checked in S-001.
+Commands were run and checked in S-001; auth config was added in S-003.
 - Setup: `nvm use` (reads `.nvmrc`; Node `^22.13.0`), then `npm install`.
-  Optional: `cp .env.example .env` (`PORT`, `DATABASE_PATH`; defaults work without it).
-  Without a `.env`, Node prints `../.env not found. Continuing without it.`; it is harmless.
+  `npm run dev` and `npm run start -w server` need a `.env` (`cp .env.example .env`) with
+  `JWT_SECRET` of at least 32 characters; the server exits 1 without it. The `change-me`
+  placeholder is deliberately too short: replace it with a random value (command in
+  `.env.example`). `PORT`, `DATABASE_PATH`, `JWT_EXPIRES_IN` have defaults.
+  `npm run migrate`, tests, and CI need no secret. Without a `.env`, Node prints
+  `../.env not found. Continuing without it.`; it is harmless.
 - Dev (API + client): `npm run dev` (API `http://localhost:3001`, client `http://localhost:5173`;
   Vite proxies `/api` to the API). A taken port makes it exit with an error.
 - Dev server only / client only: `npm run dev:server` / `npm run dev:client`
@@ -33,17 +38,21 @@ Commands were run and checked in S-001.
 - No Docker in this project.
 
 ## Folder structure
-- `server/src/index.ts` – entry; `app.ts` – `createApp({ db })`; `config.ts` – env config;
-  `errors.ts` – `AppError`
-- `server/src/routes/` – URL + middleware wiring only
-- `server/src/controllers/` – parse request, call data layer, shape response
-- `server/src/db/` – connection, migration runner, queries (all SQL lives here)
-- `server/src/middleware/` – 404 and error handler (auth/JWT comes with the auth story)
+- `server/src/index.ts` – entry; `app.ts` – `createApp({ db, auth })`; `config.ts` – env config;
+  `errors.ts` – `AppError`; `schemas.ts` – zod schemas + `parseBody`
+- `server/src/routes/` – URL + middleware wiring only (`auth-routes.ts`, `health-routes.ts`)
+- `server/src/controllers/` – parse request, call data layer, shape response (`auth-controller.ts`)
+- `server/src/auth/` – argon2 password hashing (`password.ts`), JWT sign/verify (`token.ts`)
+- `server/src/db/` – connection, migration runner, queries (all SQL lives here; `users.ts`)
+- `server/src/middleware/` – `json-body.ts`, `require-auth.ts`, 404, error handler
+- `server/src/types/express.d.ts` – adds `req.userId`
 - `server/migrations/` – numbered `.sql` files (`001_init.sql`, ...)
-- `server/scripts/` – dev-only helpers (`check-port.ts`); `server/test/` – Vitest tests
+- `server/scripts/` – dev-only helpers (`check-port.ts`)
+- `server/test/` – Vitest tests; `helpers.ts` (`makeTestApp`, fake `TEST_AUTH`);
+  `fixtures/` (test-only preloads)
 - `client/src/api.ts` – the only place that calls `fetch`
 - `client/src/` also holds `main.tsx`, `App.tsx`, and tests (`App.test.tsx`, `test/setup.ts`)
-- Planned, not created yet: `server/src/schemas.ts` (zod), `client/src/auth/`, `client/src/tasks/`
+- Planned, not created yet: `client/src/auth/`, `client/src/tasks/`
 - `docs/` – detailed docs (see below)
 
 ## Architecture rules
