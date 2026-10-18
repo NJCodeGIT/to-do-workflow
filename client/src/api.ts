@@ -133,7 +133,8 @@ function errorFromBody(status: number, body: unknown): ApiError {
 
 /**
  * Sends a JSON request to `/api/v1<path>`. `auth` defaults to true: the bearer token is added,
- * and a 401 clears the session (if unchanged) and notifies `onUnauthorized` listeners.
+ * and a 401 clears the session and notifies `onUnauthorized` listeners, but only if the stored
+ * session is still the one the request sent (a stale 401 is ignored apart from the throw).
  * Resolves to the parsed JSON body, or undefined for 204.
  */
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -173,9 +174,12 @@ async function send(
   if (!res.ok) {
     const error = errorFromBody(res.status, await readJson(res));
     if (auth && res.status === 401) {
-      // Only clear the session this request used; a newer login must survive a stale 401.
-      if (loadSession()?.token === sentToken) clearSession();
-      notifyUnauthorized();
+      // Only clear the session this request used, and only then notify: a stale 401 (the
+      // session changed while the request was in flight) must not log out a newer session.
+      if (loadSession()?.token === sentToken) {
+        clearSession();
+        notifyUnauthorized();
+      }
     }
     throw error;
   }

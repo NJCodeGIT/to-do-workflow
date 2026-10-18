@@ -37,8 +37,9 @@
     `apiRequest(path, { method, body, auth })` used by future task functions, and `ApiError`
     (`status`, `code`; `status 0` = network failure). The token never leaves this module and
     is never logged; error objects never contain the token or the request body.
-  - A 401 on an `auth: true` request clears the session (if unchanged) and notifies
-    listeners; login/register (`auth: false`) never do.
+  - A 401 on an `auth: true` request clears the session and notifies listeners only if the
+    stored token is still the one the request sent; a stale 401 (session changed while the
+    request was in flight) just throws. Login/register (`auth: false`) never clear or notify.
   - `client/src/auth/`: `AuthProvider` (React context: `user`, `sessionExpired`, `login`,
     `register`, `logout`; subscribes to `onUnauthorized`), `useAuth`, guards `RequireAuth` and
     `PublicOnly`, `LoginPage`, `RegisterPage`, pure `validation.ts`, `error-messages.ts`,

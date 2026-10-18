@@ -39,7 +39,9 @@ Router: `react-router-dom`, declarative mode (`BrowserRouter` in `main.tsx`, `<R
    Back/forward to `/` redirects to `/login` again.
 6. **Session expires / token rejected**: any authenticated API call that gets 401 clears the
    session; the guard redirects to `/login` with `from` set to the current page, and the login
-   page shows the "session expired" notice. After login: back to that page.
+   page shows the "session expired" notice. After login: back to that page. A 401 for a request
+   sent with an older token (the user logged out and in again while it was in flight) is
+   ignored: no logout, no notice.
 7. **Reload**: the session is read synchronously from storage on start, so a logged-in user
    sees home immediately (no loading state, no login flash). A token that has expired is not
    detected until the first authenticated call returns 401 (no client-side JWT decoding, #29).
