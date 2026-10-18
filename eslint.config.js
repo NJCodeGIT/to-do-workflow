@@ -19,5 +19,10 @@ export default defineConfig(
     plugins: { 'react-hooks': reactHooks },
     rules: { 'react-hooks/rules-of-hooks': 'error', 'react-hooks/exhaustive-deps': 'warn' },
   },
+  {
+    // Cloudflare Worker (client/worker/): fetch/Request/Response/Headers, no DOM.
+    files: ['client/worker/**/*.ts'],
+    languageOptions: { globals: globals.serviceworker },
+  },
   prettier,
 );

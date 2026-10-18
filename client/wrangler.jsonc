@@ -1,11 +1,22 @@
 {
-  // Cloudflare Workers static assets for the Vite SPA (docs/CICD.md, decision #41).
-  // Assets only: no Worker script, so /api is NOT proxied here (see docs/CICD.md, "API reachability").
+  // Cloudflare Workers static assets for the Vite SPA, plus a small Worker script that proxies
+  // /api/* to the API on Render (docs/CICD.md "API reachability", decisions #41, #43).
   "name": "todo-client",
   "compatibility_date": "2026-10-01",
+  // Worker entry; wrangler bundles this TypeScript file itself (not part of the Vite build).
+  "main": "./worker/index.ts",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
+    // Only /api/* invokes the Worker; every other request is served from assets without it.
+    "run_worker_first": ["/api/*"],
     // Unknown paths serve /index.html so react-router deep links (/login, /register) work on reload.
     "not_found_handling": "single-page-application",
+  },
+  "vars": {
+    // API origin only (no path, no trailing /api). PLACEHOLDER: replace with the real Render URL.
+    // This file is the source of truth: `wrangler deploy` overwrites dashboard-set vars.
+    // Unset or invalid -> /api/* returns 502 {"error":{"code":"BAD_GATEWAY",...}}.
+    "API_ORIGIN": "https://todo-api.onrender.com",
   },
 }
