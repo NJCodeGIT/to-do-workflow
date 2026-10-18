@@ -95,7 +95,7 @@ Dependencies needing Gate A approval: client runtime `react-router-dom` (beyond 
 Open questions: token storage location (see S-003 plan open question); whether home is a placeholder until the tasks stories land; depends on S-003 being merged (or at least its API contract approved).
 
 ## Task roadmap (S-005 to S-012)
-Added by the product-planner as a pick-list. S-005 is planned in full below (done); S-006 to S-012 are still titles only. Acceptance criteria, out-of-scope notes and the task breakdown for those are written (and approved at Gate A) when a story is picked and run through `/feature-orchestrator`. IDs are final; order is the suggested build order. The `tasks` table already exists in `001_init.sql`, so no story needs a migration unless design finds a gap (S-005 needed none).
+Added by the product-planner as a pick-list. S-005 and S-006 are planned in full below; S-007 to S-012 are still titles only. Acceptance criteria, out-of-scope notes and the task breakdown for those are written (and approved at Gate A) when a story is picked and run through `/feature-orchestrator`. IDs are final; order is the suggested build order. The `tasks` table already exists in `001_init.sql`, so no story needs a migration unless design finds a gap (S-005 needed none).
 
 ## S-005 Task API: create and list with status filter  [Must]
 Story: As a logged-in user, I want to create tasks and list my own tasks filtered by status, so that I can capture work and see what is active or done.
@@ -129,7 +129,45 @@ Open questions: none (all resolved at Gates A and B; see `work/S-005.md`).
 ## S-006 Task API: get, edit, complete/reopen, delete  [Must]
 Story: As a logged-in user, I want to read, edit, complete, reopen and delete a single task, so that I can keep my list accurate.
 Covers: `GET /tasks/:id`, `PATCH /tasks/:id` (title, description, status; completing sets `completedAt`), `DELETE /tasks/:id`; another user's task returns 404.
-Depends on: S-005.
+Depends on: S-005 (merged).
+Acceptance (proposed defaults in brackets await Gate A, see open questions):
+- Get: `GET /api/v1/tasks/:id` for the caller's task returns `200` with a `Task` (same seven keys as S-005, no `user_id`).
+- Id format: `:id` must be a positive integer in plain decimal digits. [Proposed: anything else (`abc`, `0`, `-1`, `1.5`, `1e2`, ` 1`, an id above the safe-integer range) returns `404 NOT_FOUND`, same as a missing task, so the id format is not an oracle.] No 500 for any id string.
+- Not found: a nonexistent id, another user's id, and an already deleted id all return `404 NOT_FOUND` with the identical body, for GET, PATCH and DELETE. Nothing is changed or deleted by a 404 request.
+- Patch edit: `PATCH` with any of `title`, `description`, `status` updates only the fields present and returns `200` with the full updated `Task`. Omitted fields are unchanged.
+- Patch title/description use the S-005 rules and messages (title trimmed, 1-200, not null; description trimmed, max 2000, `null` or empty/whitespace-only clears it to `null`).
+- Complete: `{"status":"completed"}` on an active task sets `status` `completed` and `completedAt` to an ISO-8601 UTC ms string; `updatedAt` is refreshed.
+- Reopen: `{"status":"active"}` on a completed task sets `status` `active` and `completedAt` `null`.
+- Same-status patch: [Proposed: completing an already completed task keeps the original `completedAt`; reopening an active task leaves `completedAt` `null`; both return `200`, not an error.]
+- Invalid status (`done`, `Active`, `null`, number, empty string) returns `400 VALIDATION_ERROR` and the task is unchanged.
+- Empty patch: [Proposed: `{}`, or a body with only unknown/ignored fields, returns `400 VALIDATION_ERROR` "at least one of title, description, status is required"; no write, `updatedAt` unchanged.] Missing body, non-object, array, malformed JSON keep the existing `400` messages.
+- A failing field rejects the whole request: no partial write when one field is valid and another invalid (e.g. valid `title` with `status:"done"`).
+- Ignored fields: `id`, `userId`, `user_id`, `completedAt`, `createdAt`, `updatedAt` in the body are ignored; the owner and `completedAt` cannot be set directly.
+- `updatedAt` changes on every successful write that changes data and `createdAt` never changes. [Proposed: a valid patch that changes nothing, e.g. same title, still returns 200; whether it bumps `updatedAt` is a design decision.]
+- Delete: `DELETE /api/v1/tasks/:id` for the caller's task returns `204` with an empty body; a following `GET` returns `404` and the task is gone from `GET /tasks` for every filter; a second `DELETE` returns `404`.
+- Auth: all three endpoints return `401 UNAUTHORIZED` with no header, bad scheme, malformed, bad-signature or expired token (S-003 middleware), and no task data in the response. Check order stays: body parsing 400 -> auth 401 -> id/validation -> data.
+- Deleted-user token (decision 34 pattern): a valid token whose user no longer exists gets `404` on these routes (no task can match); no 500.
+- Isolation: with tasks owned by users A and B, A cannot read, patch (including status) or delete B's task; B's task is unchanged afterwards (verified by reading it as B); `userId`/`user_id` in query or body does not change the owner or the match. Every SQL statement filters by `id` and `user_id` together.
+- Layering: SQL only in `server/src/db/tasks.ts`, no SQL in controllers, routes hold wiring only; no migration; no new dependency; no client or `api.ts` changes.
+- Tests (in-memory SQLite) cover each bullet above; `npm run lint`, `npm test`, `npm run typecheck`, `npm run build` pass; `docs/API_SPEC.md` is updated with final rules and messages (the S-005 note that `/tasks/:id` falls through to 404 is removed); `CLAUDE.md` status and folder notes updated.
+Out of scope: any client UI or `api.ts` change (S-009, S-010); a dedicated complete/reopen endpoint (decision 6); `PUT`, bulk update/delete, soft delete or undo; restoring deleted tasks; changing task owner; pagination, search, sorting; optimistic concurrency / ETag / `If-Match`; new migration (unless design finds a gap; `DB_SCHEMA.md` already says `completed_at` is set on complete and cleared on reopen, `updated_at` set by the app on every update); new dependencies; rate limiting.
+Tasks:
+1. [solution-designer] Resolve the open questions below; define zod patch schema (partial, at-least-one-field rule, messages), id parsing, same-status and no-op behaviour, `updatedAt` rule, and the atomic update strategy (single `UPDATE ... WHERE id = ? AND user_id = ?` with `RETURNING`, so no read-then-write race); update `docs/API_SPEC.md` (and `docs/DB_SCHEMA.md` only if a gap is found).
+2. [app-developer] Data layer in `server/src/db/tasks.ts`: get by id, update by id, delete by id, all scoped by `user_id`, row-to-`Task` mapping reused.
+3. [app-developer] zod patch schema and id handling; controller handlers (get, patch, delete) and routes mounted behind the auth middleware.
+4. [test-engineer] API tests: get (own, missing, other user, bad ids), patch (each field, multi-field, null/clear description, bounds, complete/reopen with `completedAt`, same-status, invalid status, empty body, ignored fields, no partial write), delete (204, then 404, second delete 404, gone from lists), 401 cases, two-user isolation for all three verbs, deleted-user token.
+5. [quality-tester] Review against criteria, the `user_id` scoping rule, 404-not-403, and layering rules.
+6. [document-writer] Update `CLAUDE.md` status and folder notes, verify `docs/API_SPEC.md` matches behaviour.
+7. [delivery-operator] Release checklist; no CI change expected.
+Dependencies needing Gate A approval: none (existing `express`, `zod`, `better-sqlite3`, `supertest`).
+Open questions (proposed default in brackets; none block starting design if the defaults are accepted at Gate A):
+1. Empty or no-op PATCH body: reject with 400 [proposed] or return 200 with the unchanged task?
+2. `completedAt` on reopen: clear to `null` [proposed, matches `DB_SCHEMA.md`] or keep the last completion time?
+3. Re-completing an already completed task: keep the original `completedAt` [proposed] or refresh it?
+4. Invalid `:id` format (`abc`, `0`, `1.5`): `404` [proposed, one behaviour for "no such task"] or `400 VALIDATION_ERROR`?
+5. Does a patch that changes no values (same title) bump `updatedAt`? [proposed: no; only real changes do, designer to confirm].
+6. `description: null` and `""` in PATCH clear the description to `null` [proposed, consistent with decision 32]; `title: null` is a 400.
+Decision log: designer records the answers to 1-5 as new rows in `docs/DECISIONS.md`.
 
 ## S-007 Client: task list and status filter  [Must]
 Story: As a logged-in user, I want to see my tasks and filter them by All / Active / Completed, so that I can focus on what matters.
