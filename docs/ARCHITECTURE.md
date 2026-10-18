@@ -30,6 +30,24 @@
   - Data: `server/src/db/users.ts` (all user SQL). Duplicate email is detected by the
     `UNIQUE COLLATE NOCASE` constraint (no pre-check), mapped to `409 EMAIL_TAKEN`.
 - Authorization: all task access is scoped by the `user_id` in the token.
+- Client auth (S-004; screens and messages in `docs/UI_SPEC.md`, decisions #26, #28-#31):
+  - `client/src/api.ts` owns `fetch` and the session (`localStorage` key `todo.session`,
+    `{token, user}`). It exports `login`/`register` (store the session, return `User`),
+    `getCurrentUser`, `clearSession`, `onUnauthorized(listener)`, the generic
+    `apiRequest(path, { method, body, auth })` used by future task functions, and `ApiError`
+    (`status`, `code`; `status 0` = network failure). The token never leaves this module and
+    is never logged; error objects never contain the token or the request body.
+  - A 401 on an `auth: true` request clears the session (if unchanged) and notifies
+    listeners; login/register (`auth: false`) never do.
+  - `client/src/auth/`: `AuthProvider` (React context: `user`, `sessionExpired`, `login`,
+    `register`, `logout`; subscribes to `onUnauthorized`), `useAuth`, guards `RequireAuth` and
+    `PublicOnly`, `LoginPage`, `RegisterPage`, pure `validation.ts`, `error-messages.ts`,
+    `redirect.ts`. `client/src/HomePage.tsx` is the protected placeholder home.
+  - Wiring: `main.tsx` renders `BrowserRouter > AuthProvider > App`; `App.tsx` holds `<Routes>` only.
+    Routers use `useTransitions={false}` (tests too): otherwise the location update is a
+    transition and renders after the auth state update, so on logout `RequireAuth` runs before
+    navigation finishes and adds a `from` state (#28).
+  - No `dangerouslySetInnerHTML` anywhere (#26).
 - Runtime: Node 22 (`.nvmrc`), ESM everywhere (`"type": "module"`).
 - Server wiring: `server/src/index.ts` (entry: config, hash warm-up, open DB, listen) ->
   `createApp({ db, auth })` in `server/src/app.ts` (routes, 404, error handler). The DB

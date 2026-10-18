@@ -1,7 +1,8 @@
 # Conventions
 
 ## Naming
-- Server files `kebab-case.ts`; React components `PascalCase.tsx`; hooks `useThing.ts`.
+- Server files `kebab-case.ts`; React components `PascalCase.tsx`; hooks `useThing.ts`;
+  other client modules `kebab-case.ts` (e.g. `api.ts`, `error-messages.ts`).
 - API JSON `camelCase`; DB columns `snake_case`; map in the data layer only.
 
 ## Errors
@@ -15,7 +16,9 @@
 
 ## Testing
 - Vitest. Server: API tests via supertest against the Express app with in-memory SQLite.
-- Client: component tests with Testing Library for forms and the status filter.
+- Client: component tests with Testing Library (+ `user-event`) for forms and the status filter;
+  components are tested with `client/src/api.ts` mocked (`vi.mock`) inside a `MemoryRouter`;
+  `api.ts` itself is tested with a stubbed `fetch` and a cleared `localStorage`.
 - E2E (planned): Playwright in `e2e/`, 3-5 smoke flows only, role/label locators, no fixed sleeps,
   fresh temporary SQLite file per run, axe accessibility check on key pages.
 - Most coverage stays at unit/API level; E2E never duplicates it.
