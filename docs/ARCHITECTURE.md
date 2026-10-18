@@ -42,6 +42,15 @@
     mapping; SQL selects an explicit column list without `user_id`. A foreign-key failure on
     insert (token for a user that no longer exists) is mapped there to
     `401 UNAUTHORIZED "Invalid or expired token"` (decision 34).
+- Tasks (S-006): `GET`/`PATCH`/`DELETE /tasks/:id`, same layering and `requireAuth` per route.
+  - `db/tasks.ts` adds `getTask`, `updateTask` and `deleteTask`, each filtering by `id` and
+    `user_id`. `updateTask` is one fixed `UPDATE ... CASE ... RETURNING` statement (atomic, no
+    read-then-write); it returns `null` and `deleteTask` returns `false` when no row matches
+    (decisions 36-40).
+  - `parseTaskId` and `updateTaskSchema` are in `schemas.ts`. The controller turns a malformed
+    id and a `null`/`false` data result into one `404 "Task not found"`.
+  - The error handler maps a `URIError` with status 400 (the router's undecodable-path error)
+    to `404 NOT_FOUND "Route not found"`, unlogged (decision 38).
 - Client auth (S-004; screens and messages in `docs/UI_SPEC.md`, decisions #26, #28-#31):
   - `client/src/api.ts` owns `fetch` and the session (`localStorage` key `todo.session`,
     `{token, user}`). It exports `login`/`register` (store the session, return `User`),

@@ -48,13 +48,13 @@ const titleSchema = requiredString('title')
   .min(1, { error: 'title is required' })
   .max(200, { error: 'title must be at most 200 characters' });
 
-// Optional; omitted, null, and empty-after-trim all become null (never '').
-const descriptionSchema = z
+const descriptionText = z
   .string({ error: 'description must be a string' })
   .trim()
-  .max(2000, { error: 'description must be at most 2000 characters' })
-  .nullish()
-  .transform((v) => (v ? v : null));
+  .max(2000, { error: 'description must be at most 2000 characters' });
+
+// Optional; omitted, null, and empty-after-trim all become null (never '').
+const descriptionSchema = descriptionText.nullish().transform((v) => (v ? v : null));
 
 export const createTaskSchema = z.object(
   { title: titleSchema, description: descriptionSchema },
@@ -72,6 +72,39 @@ export const listTasksQuerySchema = z.object({
 
 export type CreateTaskBody = z.infer<typeof createTaskSchema>;
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
+
+export const TASK_STATUSES = ['active', 'completed'] as const;
+
+// Absent keys stay undefined (unchanged); description null/''/whitespace becomes null (cleared).
+// Field issues are reported before the at-least-one rule (decision 35).
+export const updateTaskSchema = z
+  .object(
+    {
+      title: titleSchema.optional(),
+      description: descriptionText
+        .nullable()
+        .transform((v) => (v ? v : null))
+        .optional(),
+      status: z
+        .enum(TASK_STATUSES, { error: 'status must be one of: active, completed' })
+        .optional(),
+    },
+    { error: BODY_MESSAGE },
+  )
+  .refine((v) => v.title !== undefined || v.description !== undefined || v.status !== undefined, {
+    error: 'at least one of title, description, status is required',
+  });
+
+export type UpdateTaskBody = z.infer<typeof updateTaskSchema>;
+
+const TASK_ID = /^[1-9][0-9]*$/;
+
+/** Returns the id, or null if `raw` is not a canonical positive safe integer (decision 38). */
+export function parseTaskId(raw: unknown): number | null {
+  if (typeof raw !== 'string' || !TASK_ID.test(raw)) return null;
+  const id = Number(raw);
+  return Number.isSafeInteger(id) ? id : null;
+}
 
 /** Parses `body` or throws 400 VALIDATION_ERROR with the first issue's message. */
 export function parseBody<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {

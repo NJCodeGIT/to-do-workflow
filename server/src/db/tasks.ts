@@ -79,3 +79,66 @@ export function listTasks(db: Database.Database, userId: number, filter: TaskFil
           .all(userId, filter) as TaskRow[]);
   return rows.map(toTask);
 }
+
+/** Returns `userId`'s task `id`, or null if it does not exist or belongs to someone else. */
+export function getTask(db: Database.Database, userId: number, id: number): Task | null {
+  const row = db
+    .prepare(`SELECT ${TASK_COLUMNS} FROM tasks WHERE id = ? AND user_id = ?`)
+    .get(id, userId) as TaskRow | undefined;
+  return row ? toTask(row) : null;
+}
+
+/** Fields to change; an absent (undefined) key keeps the stored value. */
+export interface TaskPatch {
+  title?: string;
+  description?: string | null;
+  status?: TaskStatus;
+}
+
+// One fixed statement (decision 40). SET expressions see the old row, and 'now' is fixed for
+// the statement, so completed_at equals updated_at on completion. completed_at changes only on
+// a real status change; updated_at only when a stored value changes (decisions 36, 37, 39).
+const UPDATE_TASK_SQL = `UPDATE tasks SET
+  title = CASE WHEN @hasTitle = 1 THEN @title ELSE title END,
+  description = CASE WHEN @hasDescription = 1 THEN @description ELSE description END,
+  status = CASE WHEN @hasStatus = 1 THEN @status ELSE status END,
+  completed_at = CASE
+    WHEN @hasStatus = 0 OR @status = status THEN completed_at
+    WHEN @status = 'completed' THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    ELSE NULL
+  END,
+  updated_at = CASE
+    WHEN (@hasTitle = 1 AND title IS NOT @title)
+      OR (@hasDescription = 1 AND description IS NOT @description)
+      OR (@hasStatus = 1 AND status IS NOT @status)
+    THEN strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    ELSE updated_at
+  END
+WHERE id = @id AND user_id = @userId
+RETURNING ${TASK_COLUMNS}`;
+
+/** Applies `patch` to `userId`'s task `id` atomically; null if no such task for this user. */
+export function updateTask(
+  db: Database.Database,
+  userId: number,
+  id: number,
+  patch: TaskPatch,
+): Task | null {
+  // Flags are integers: better-sqlite3 does not bind booleans.
+  const row = db.prepare(UPDATE_TASK_SQL).get({
+    id,
+    userId,
+    hasTitle: patch.title !== undefined ? 1 : 0,
+    title: patch.title ?? null,
+    hasDescription: patch.description !== undefined ? 1 : 0,
+    description: patch.description ?? null,
+    hasStatus: patch.status !== undefined ? 1 : 0,
+    status: patch.status ?? null,
+  }) as TaskRow | undefined;
+  return row ? toTask(row) : null;
+}
+
+/** Deletes `userId`'s task `id`; false if no such task for this user. */
+export function deleteTask(db: Database.Database, userId: number, id: number): boolean {
+  return db.prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?').run(id, userId).changes === 1;
+}
