@@ -3,9 +3,10 @@
 Minimal to-do web app: users register/login, then create, edit, delete, complete,
 and filter their own tasks by status. Monorepo with a REST API and an SPA.
 
-> **Status: client auth built (S-004).** The monorepo runs: health endpoint, SQLite migration
-> runner, register/login endpoints and JWT middleware, client login/register/logout with route
-> guards and a placeholder home page. Tasks and E2E are not built yet.
+> **Status: task create/list API built (S-005).** The monorepo runs: health endpoint, SQLite
+> migration runner, register/login endpoints and JWT middleware, client login/register/logout
+> with route guards and a placeholder home page, and `POST /tasks` + `GET /tasks?status=`.
+> Task get/edit/complete/delete (S-006), the task UI, and E2E are not built yet.
 
 ## Stack
 - Client: React + Vite, TypeScript, `react-router-dom` (`client/`)
@@ -40,16 +41,16 @@ Commands were run and checked in S-001; auth config was added in S-003.
 ## Folder structure
 - `server/src/index.ts` – entry; `app.ts` – `createApp({ db, auth })`; `config.ts` – env config;
   `errors.ts` – `AppError`; `schemas.ts` – zod schemas + `parseBody`
-- `server/src/routes/` – URL + middleware wiring only (`auth-routes.ts`, `health-routes.ts`)
-- `server/src/controllers/` – parse request, call data layer, shape response (`auth-controller.ts`)
+- `server/src/routes/` – URL + middleware wiring only (`auth-routes.ts`, `health-routes.ts`, `task-routes.ts`)
+- `server/src/controllers/` – parse request, call data layer, shape response (`auth-controller.ts`, `task-controller.ts`)
 - `server/src/auth/` – argon2 password hashing (`password.ts`), JWT sign/verify (`token.ts`)
-- `server/src/db/` – connection, migration runner, queries (all SQL lives here; `users.ts`)
+- `server/src/db/` – connection, migration runner, queries (all SQL lives here; `users.ts`, `tasks.ts`)
 - `server/src/middleware/` – `json-body.ts`, `require-auth.ts`, 404, error handler
 - `server/src/types/express.d.ts` – adds `req.userId`
 - `server/migrations/` – numbered `.sql` files (`001_init.sql`, ...)
 - `server/scripts/` – dev-only helpers (`check-port.ts`)
 - `server/test/` – Vitest tests; `helpers.ts` (`makeTestApp`, fake `TEST_AUTH`);
-  `fixtures/` (test-only preloads)
+  `fixtures/` (test-only preloads); task API tests in `tasks.test.ts` and `tasks-extra.test.ts`
 - `client/src/api.ts` – the only place that calls `fetch`
 - `client/src/auth/` – `AuthProvider`, `RequireAuth`/`PublicOnly` guards, `LoginPage`,
   `RegisterPage`, `validation.ts`, `error-messages.ts`, `redirect.ts` (+ tests)

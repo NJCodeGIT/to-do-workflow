@@ -30,6 +30,18 @@
   - Data: `server/src/db/users.ts` (all user SQL). Duplicate email is detected by the
     `UNIQUE COLLATE NOCASE` constraint (no pre-check), mapped to `409 EMAIL_TAKEN`.
 - Authorization: all task access is scoped by the `user_id` in the token.
+- Tasks (S-005): `routes/task-routes.ts` -> `controllers/task-controller.ts` -> `db/tasks.ts`.
+  - `requireAuth` is attached per route (`taskRoutes.get('/tasks', requireAuth, ...)`), never
+    with a path-less `router.use(requireAuth)`, which would turn unknown-route 404s into 401s.
+  - Controllers get the owner only from `userIdOf(req)` and pass it as an explicit `userId`
+    argument to every `db/tasks.ts` function; no task function exists without a `userId`
+    parameter, and every task SQL statement has `user_id = ?` in its `WHERE` (or sets it on
+    `INSERT`). Body and query are parsed with zod (`createTaskSchema`, `listTasksQuerySchema`
+    in `schemas.ts`); unknown fields are stripped, so a client-sent `userId` never reaches SQL.
+  - `db/tasks.ts` owns the `Task` type and the row (`snake_case`) -> `Task` (`camelCase`)
+    mapping; SQL selects an explicit column list without `user_id`. A foreign-key failure on
+    insert (token for a user that no longer exists) is mapped there to
+    `401 UNAUTHORIZED "Invalid or expired token"` (decision 34).
 - Client auth (S-004; screens and messages in `docs/UI_SPEC.md`, decisions #26, #28-#31):
   - `client/src/api.ts` owns `fetch` and the session (`localStorage` key `todo.session`,
     `{token, user}`). It exports `login`/`register` (store the session, return `User`),

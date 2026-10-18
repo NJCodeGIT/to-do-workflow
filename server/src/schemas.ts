@@ -42,6 +42,37 @@ export const loginSchema = z.object(
 export type RegisterBody = z.infer<typeof registerSchema>;
 export type LoginBody = z.infer<typeof loginSchema>;
 
+// Trim runs before the length checks; empty or whitespace-only counts as missing.
+const titleSchema = requiredString('title')
+  .trim()
+  .min(1, { error: 'title is required' })
+  .max(200, { error: 'title must be at most 200 characters' });
+
+// Optional; omitted, null, and empty-after-trim all become null (never '').
+const descriptionSchema = z
+  .string({ error: 'description must be a string' })
+  .trim()
+  .max(2000, { error: 'description must be at most 2000 characters' })
+  .nullish()
+  .transform((v) => (v ? v : null));
+
+export const createTaskSchema = z.object(
+  { title: titleSchema, description: descriptionSchema },
+  { error: BODY_MESSAGE },
+);
+
+export const TASK_FILTERS = ['active', 'completed', 'all'] as const;
+
+// Strict: empty, wrong case, and repeated values (arrays) all fail.
+export const listTasksQuerySchema = z.object({
+  status: z
+    .enum(TASK_FILTERS, { error: 'status must be one of: active, completed, all' })
+    .default('all'),
+});
+
+export type CreateTaskBody = z.infer<typeof createTaskSchema>;
+export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
+
 /** Parses `body` or throws 400 VALIDATION_ERROR with the first issue's message. */
 export function parseBody<T extends z.ZodType>(schema: T, body: unknown): z.infer<T> {
   const result = schema.safeParse(body);
