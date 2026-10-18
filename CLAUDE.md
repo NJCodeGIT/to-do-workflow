@@ -7,6 +7,8 @@ and filter their own tasks by status. Monorepo with a REST API and an SPA.
 > migration runner, register/login endpoints and JWT middleware, client login/register/logout
 > with route guards and a placeholder home page, `POST /tasks` + `GET /tasks?status=`, and
 > `GET/PATCH/DELETE /tasks/:id` (edit, complete/reopen, delete). The task UI and E2E are not built yet.
+> CD (prepared, not yet run): client deploys to Cloudflare Workers via `.github/workflows/ci.yml`
+> (preview on PRs, `production` environment on `main`); API host undecided. See `docs/CICD.md`.
 
 ## Stack
 - Client: React + Vite, TypeScript, `react-router-dom` (`client/`)
@@ -98,7 +100,7 @@ Commands were run and checked in S-001; auth config was added in S-003.
 - REST API contract: `docs/API_SPEC.md`
 - DB schema: `docs/DB_SCHEMA.md`
 - Conventions (detail): `docs/CONVENTIONS.md`
-- CI/CD: `docs/CICD.md`
+- CI/CD (CI, Cloudflare client deploy, rollback): `docs/CICD.md`
 - Decisions log: `docs/DECISIONS.md`
 - Backlog (stories, acceptance criteria): `docs/BACKLOG.md`
 - UI wireframes and flows: `docs/UI_SPEC.md`

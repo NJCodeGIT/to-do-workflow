@@ -1,0 +1,11 @@
+{
+  // Cloudflare Workers static assets for the Vite SPA (docs/CICD.md, decision #41).
+  // Assets only: no Worker script, so /api is NOT proxied here (see docs/CICD.md, "API reachability").
+  "name": "todo-client",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // Unknown paths serve /index.html so react-router deep links (/login, /register) work on reload.
+    "not_found_handling": "single-page-application",
+  },
+}
