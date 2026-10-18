@@ -53,9 +53,14 @@ and ask the user to approve, request changes, or stop. Do not continue without a
 On "changes", rerun that stage with the user's feedback in the prompt, then ask again.
 Record approval (`Approved at Gate A: yes`) in the work file.
 
+## Defects found by test-engineer (step 4)
+If `## Tests` reports an application defect (failing test, expected vs actual), run
+`app-developer` (reads Story, Design, Tests; writes Build), then `test-engineer` again.
+This counts toward the same 2-round limit as the fix loop.
+
 ## Fix loop (after step 5)
 - `Verdict: pass`: go to step 6.
-- `Verdict: fix-needed` with Critical or High findings: increment `Fix round`, run
+- `Verdict: fix-needed` with Critical or High findings: increment `Fix round` (kept in the work file header; you own it), run
   `app-developer` (reads Review, writes Build), then `test-engineer`, then `quality-tester` again.
 - After 2 failed rounds, stop and show the user the remaining findings and options.
 - Medium/Low findings: list them at Gate C; fix only if the user asks.

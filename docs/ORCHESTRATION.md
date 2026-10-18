@@ -64,10 +64,21 @@ The orchestrator verifies the section exists and is non-empty before the next st
   Verified after the fix: test-engineer, app-developer, delivery-operator, and quality-tester
   all run Bash.
 - quality-tester has Bash (it must run tests) but no Edit/Write. Bash can still modify files,
-  so its read-only status rests on its Limits section, not on the tool list. A PreToolUse hook
-  could enforce it later.
-- Edits to `.claude/agents/*.md` are picked up after a context reload (`register_repo_root`
-  for the repo) or a new session; a running session keeps the old definitions until then.
+  so its read-only status also rests on the `quality-tester-readonly` hook (see below), not
+  only on the tool list.
+- Edits to `.claude/agents/*.md` are picked up in a new session; a running session keeps
+  the old definitions until then.
+- `.claude/settings.json` backs the "never merge / push to main / tag / rebase" rule with
+  permission rules for the main session (`git commit` and `git push` prompt; merge, rebase,
+  tag, force-push, push to main, and `gh pr merge` are denied). Subagents inherit these.
+- Two PreToolUse hooks in `.claude/settings.json` (scripts in `.claude/hooks/`) enforce the
+  rest, keyed on the hook input's `agent_type`:
+  - `quality-tester-readonly.mjs` (Bash): quality-tester may only run tests, lint, typecheck,
+    build, and read-only git/file commands; redirections, `sed -i`, `tee`, `rm`, `git checkout`
+    etc. are blocked.
+  - `no-main-edits.mjs` (Edit|Write): app-developer is blocked while on `main`/`master`.
+  Both pass through for every other agent and the main session, and fail open if git is missing.
+  If a hook misfires, check that the runtime still sends `agent_type` for subagent calls.
 - `quality-tester` has no write tools: it returns its review (ending in
   `Verdict: pass|fix-needed`) and the orchestrator saves it into `## Review`.
 - Model choices are suggestions and can be changed in each file's `model:` field.

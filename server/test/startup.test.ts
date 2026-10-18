@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const serverDir = fileURLToPath(new URL('..', import.meta.url));
 
@@ -108,7 +108,8 @@ describe('server startup fails fast on bad auth config', () => {
 
   it('password-hashing warm-up failure: exit 1, generic message only, no DB created', () => {
     // The preload makes argon2.hash reject with a marker message; the entry must not print it.
-    const preload = join(serverDir, 'test/fixtures/fail-argon2-hash.mjs');
+    // --import needs a file:// URL: the ESM loader rejects a bare Windows path (D:\...).
+    const preload = pathToFileURL(join(serverDir, 'test/fixtures/fail-argon2-hash.mjs')).href;
     const res = runServer({ JWT_SECRET: FAKE_VALID, DATABASE_PATH: dbPath }, ['--import', preload]);
     expect(res.error).toBeUndefined();
     expect(res.status).toBe(1);

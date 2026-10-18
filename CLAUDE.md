@@ -83,7 +83,15 @@ Commands were run and checked in S-001; auth config was added in S-003.
 - Before every commit: run `npm run lint` and `npm test`; both must pass.
 - Do not commit until the user has reviewed the changes.
 
+## Agent workflow
+- Run a story end to end with `/feature-orchestrator` (planner, designer, developer, test
+  engineer, quality tester, docs/delivery) with approval gates A/B/C. Details and the handoff
+  file (`work/<ID>.md`, git-ignored) are in `docs/ORCHESTRATION.md`.
+- Agents are in `.claude/agents/`, role skills in `.claude/skills/`, permission rules in
+  `.claude/settings.json`. For small direct edits you can skip the pipeline.
+
 ## Detailed docs (link, don't copy)
+- Orchestration (agents, gates, handoff): `docs/ORCHESTRATION.md`
 - Architecture: `docs/ARCHITECTURE.md`
 - REST API contract: `docs/API_SPEC.md`
 - DB schema: `docs/DB_SCHEMA.md`

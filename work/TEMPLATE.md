@@ -6,6 +6,7 @@ writes only its own section. See `docs/ORCHESTRATION.md`.
 Branch: <feature branch>
 Path: feature | bug-fix | docs-only | ci-release
 Status: planning | design | build | test | review | docs/release | ready-for-gate-c
+Fix round: 0
 
 ## Story
 <!-- Orchestrator: ID, title, goal, acceptance criteria copied from docs/BACKLOG.md -->
@@ -17,7 +18,7 @@ Status: planning | design | build | test | review | docs/release | ready-for-gat
 <!-- solution-designer: changed docs, decisions, ordered task list for app-developer. Approved at Gate B: yes/no -->
 
 ## Build
-<!-- app-developer: files changed, commands run with real results, anything not done. Fix round: 0 -->
+<!-- app-developer: files changed, commands run with real results, anything not done -->
 
 ## Tests
 <!-- test-engineer: tests added/changed, commands run with real results, remaining gaps -->
