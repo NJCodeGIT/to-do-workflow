@@ -37,8 +37,13 @@ CREATE INDEX idx_tasks_user_status ON tasks (user_id, status, created_at DESC);
   `idx_tasks_user_status` index serves filtered lists; the `all` list may sort in memory,
   fine at this scale. An insert for a missing user fails the foreign key
   (`SQLITE_CONSTRAINT_FOREIGNKEY`), mapped to 401 (decision 34).
-- `completed_at` is set when status becomes `completed`, cleared on reopen.
-- `updated_at` is set by the app on every update.
+- `completed_at` is set when status changes to `completed`, cleared (`NULL`) on reopen, and
+  kept unchanged when a completed task is "completed" again (decisions 36, 37).
+- `updated_at` is set on every update that changes a stored value; an update that writes
+  the same values leaves it unchanged (decision 39). Both timestamps come from
+  `strftime('%Y-%m-%dT%H:%M:%fZ','now')` inside the single `UPDATE` (S-006, decision 40), so
+  on completion `completed_at` equals `updated_at`. `created_at` never changes.
+- S-006 needs no migration: get/update/delete use the primary key plus `user_id = ?`.
 - Migrations: numbered files in `server/migrations/`, applied in order, tracked in a `schema_migrations` table.
   - File name `NNN_snake_name.sql` (3 digits). Each file runs in its own transaction, so it
     must not contain `BEGIN`/`COMMIT`. A failing file is rolled back and not recorded.

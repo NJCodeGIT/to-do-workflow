@@ -3,10 +3,10 @@
 Minimal to-do web app: users register/login, then create, edit, delete, complete,
 and filter their own tasks by status. Monorepo with a REST API and an SPA.
 
-> **Status: task create/list API built (S-005).** The monorepo runs: health endpoint, SQLite
+> **Status: task API built (S-005, S-006).** The monorepo runs: health endpoint, SQLite
 > migration runner, register/login endpoints and JWT middleware, client login/register/logout
-> with route guards and a placeholder home page, and `POST /tasks` + `GET /tasks?status=`.
-> Task get/edit/complete/delete (S-006), the task UI, and E2E are not built yet.
+> with route guards and a placeholder home page, `POST /tasks` + `GET /tasks?status=`, and
+> `GET/PATCH/DELETE /tasks/:id` (edit, complete/reopen, delete). The task UI and E2E are not built yet.
 
 ## Stack
 - Client: React + Vite, TypeScript, `react-router-dom` (`client/`)
@@ -50,7 +50,8 @@ Commands were run and checked in S-001; auth config was added in S-003.
 - `server/migrations/` – numbered `.sql` files (`001_init.sql`, ...)
 - `server/scripts/` – dev-only helpers (`check-port.ts`)
 - `server/test/` – Vitest tests; `helpers.ts` (`makeTestApp`, fake `TEST_AUTH`);
-  `fixtures/` (test-only preloads); task API tests in `tasks.test.ts` and `tasks-extra.test.ts`
+  `fixtures/` (test-only preloads); task API tests in `tasks.test.ts`, `tasks-extra.test.ts` (create/list) and
+  `task-item.test.ts`, `task-item-extra.test.ts` (get/edit/complete/delete)
 - `client/src/api.ts` – the only place that calls `fetch`
 - `client/src/auth/` – `AuthProvider`, `RequireAuth`/`PublicOnly` guards, `LoginPage`,
   `RegisterPage`, `validation.ts`, `error-messages.ts`, `redirect.ts` (+ tests)

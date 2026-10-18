@@ -10,7 +10,7 @@ Base path `/api/v1`. JSON bodies. Task routes require `Authorization: Bearer <jw
 | GET | `/tasks?status=active\|completed\|all` | - | `200 {tasks:[Task]}` (default `all`, newest first) | 400, 401 |
 | POST | `/tasks` | `{title, description?}` | `201 Task` | 400, 401 |
 | GET | `/tasks/:id` | - | `200 Task` | 401, 404 |
-| PATCH | `/tasks/:id` | any of `{title, description, status}` | `200 Task` | 400, 401, 404 |
+| PATCH | `/tasks/:id` | at least one of `{title, description, status}` | `200 Task` | 400, 401, 404 |
 | DELETE | `/tasks/:id` | - | `204` | 401, 404 |
 
 - Complete a task: `PATCH /tasks/:id {"status":"completed"}`; reopen with `"active"`.
@@ -105,17 +105,18 @@ checked against the hash, so a short wrong password gives 401, not 400.
 - A valid token for a user that no longer exists is still accepted until it expires
   (no account deletion exists yet; see `docs/DECISIONS.md`). Task routes treat it as follows:
   `GET /tasks` returns `{tasks:[]}`; `POST /tasks` returns `401 UNAUTHORIZED`
-  `Invalid or expired token` (the insert fails the `user_id` foreign key; see Tasks).
+  `Invalid or expired token` (the insert fails the `user_id` foreign key; see Tasks);
+  `GET`/`PATCH`/`DELETE /tasks/:id` return `404 NOT_FOUND` `Task not found` (no task can match).
 
 ## Tasks
-Both routes below (S-005) require a valid Bearer token (401 cases as in Authenticated
+All task routes (S-005, S-006) require a valid Bearer token (401 cases as in Authenticated
 requests). Order of checks: body parsing (`400 Invalid request body`, decision 27) ->
-auth (401) -> validation (400) -> data. So a missing token with a valid body gives 401, and
-a missing token with a malformed JSON body gives 400.
+auth (401) -> `:id` format (404, `/tasks/:id` only) -> validation (400) -> data. So a missing
+token with a valid body gives 401, and a missing token with a malformed JSON body gives 400.
 
-Error codes used: `VALIDATION_ERROR` (400), `UNAUTHORIZED` (401), `INTERNAL_ERROR` (500).
-No new codes. Other methods on `/tasks` (e.g. `PUT`, `DELETE /tasks`) and all
-`/tasks/:id` routes fall through to the unknown-route 404 until S-006.
+Error codes used: `VALIDATION_ERROR` (400), `UNAUTHORIZED` (401), `NOT_FOUND` (404),
+`INTERNAL_ERROR` (500). No new codes. Other methods (e.g. `PUT /tasks/:id`, `POST /tasks/:id`,
+`DELETE /tasks`, `PATCH /tasks`) fall through to the unknown-route 404 (`Route not found`).
 
 ### `Task` object
 ```json
@@ -185,3 +186,82 @@ Trim is JS `String.prototype.trim` (Unicode whitespace, incl. newlines and tabs)
 - Title and description are stored and returned trimmed. Inner whitespace and newlines
   are kept as sent. Text is stored as-is (no HTML escaping server-side; the client
   renders it as text, decision 26).
+
+### Task id (`:id`) and not found (S-006)
+Applies to `GET`, `PATCH`, `DELETE /api/v1/tasks/:id`.
+
+- `:id` (after Express URL-decoding) must match `^[1-9][0-9]*$` and be at most
+  `Number.MAX_SAFE_INTEGER`. Anything else (`abc`, `0`, `-1`, `01`, `1.5`, `1e2`, ` 1`,
+  `1/2`, `9007199254740992`) returns the not-found response below, never 400 or 500
+  (decision 38). `%31` decodes to `1` and is a valid id.
+- Not found: a malformed id, a nonexistent id, another user's id, and an already deleted id
+  all return the identical body, and nothing is changed or deleted:
+  `404 {"error":{"code":"NOT_FOUND","message":"Task not found"}}`.
+- A path whose percent-encoding cannot be decoded (e.g. `/tasks/%E0%A4%A`) returns
+  `404 {"error":{"code":"NOT_FOUND","message":"Route not found"}}`, not 500 (decision 38).
+- This undecodable-path rejection happens in routing, before auth, so it returns
+  `404 Route not found` even without a token (not 401).
+- `userId`/`user_id` in the query or body never affects which task matches.
+
+### `GET /api/v1/tasks/:id`
+`200`: the `Task` (bare object). Body, if any, is ignored (but malformed JSON still gives
+`400 Invalid request body`, decision 27).
+
+| Status | Code | Message | When |
+|---|---|---|---|
+| 401 | `UNAUTHORIZED` | as in Authenticated requests | missing/bad/expired token |
+| 404 | `NOT_FOUND` | `Task not found` | see Task id and not found |
+
+### `PATCH /api/v1/tasks/:id`
+Request: any non-empty subset of `{title, description, status}`, e.g.
+`{"status":"completed"}` or `{"title":" Buy oat milk ","description":null}`.
+
+`200`: the full updated `Task`. Only fields present in the body change; omitted fields keep
+their values.
+
+- `title`, `description`: same rules and messages as create (Task validation rules), except
+  that both are optional. `title: null` is `400 title must be a string`. `description`
+  `null`, `""` or whitespace-only clears it to `null`.
+- `status`: exactly `active` or `completed`.
+  - Complete (`active` -> `completed`): `completedAt` is set to the current time
+    (ISO UTC ms, equal to the new `updatedAt`).
+  - Reopen (`completed` -> `active`): `completedAt` becomes `null` (decision 36).
+  - Same status: completing a completed task keeps the original `completedAt`; reopening an
+    active task leaves it `null`. Both return `200` (decision 37).
+- `updatedAt` is refreshed only when at least one stored value actually changes; a patch
+  whose values equal the stored ones (e.g. same title after trim, same status) returns `200`
+  with `updatedAt` unchanged (decision 39). `createdAt` never changes.
+- Ignored (stripped): every other field, including `id`, `userId`, `user_id`, `completedAt`,
+  `createdAt`, `updatedAt`. The owner and `completedAt` cannot be set directly.
+- At least one of `title`, `description`, `status` must be present (decision 35). A body with
+  none of them (`{}`, or only ignored fields) is `400`; no write.
+- All-or-nothing: if any field is invalid the request is `400` and the task is unchanged
+  (validation completes before the single `UPDATE`, decision 40).
+- Validation messages follow field order `title`, `description`, `status`; the first failing
+  rule's message is returned. Field errors take precedence over the at-least-one rule.
+- A `:id` that is malformed returns `404` before the body is validated; a well-formed id with
+  an invalid body returns `400` whether or not the task exists (no existence oracle).
+
+| Status | Code | Message | When |
+|---|---|---|---|
+| 400 | `VALIDATION_ERROR` | `Request body must be a JSON object` | missing body, non-JSON content type, array |
+| 400 | `VALIDATION_ERROR` | `Invalid request body` | malformed JSON, too large, JSON primitive (decision 27) |
+| 400 | `VALIDATION_ERROR` | `title must be a string` | `title` is `null`, number, etc. |
+| 400 | `VALIDATION_ERROR` | `title is required` | `title` empty or whitespace-only |
+| 400 | `VALIDATION_ERROR` | `title must be at most 200 characters` | after trim |
+| 400 | `VALIDATION_ERROR` | `description must be a string` | not a string and not `null` |
+| 400 | `VALIDATION_ERROR` | `description must be at most 2000 characters` | after trim |
+| 400 | `VALIDATION_ERROR` | `status must be one of: active, completed` | `status` present but not exactly `active`/`completed` (`done`, `Active`, `""`, `null`, number) |
+| 400 | `VALIDATION_ERROR` | `at least one of title, description, status is required` | none of the three present |
+| 401 | `UNAUTHORIZED` | as in Authenticated requests | missing/bad/expired token |
+| 404 | `NOT_FOUND` | `Task not found` | see Task id and not found |
+
+### `DELETE /api/v1/tasks/:id`
+`204` with an empty body. The task is removed permanently (no soft delete): a following
+`GET /tasks/:id` returns `404`, it is gone from `GET /tasks` for every filter, and a second
+`DELETE` returns `404`. Body, if any, is ignored (malformed JSON still gives 400).
+
+| Status | Code | Message | When |
+|---|---|---|---|
+| 401 | `UNAUTHORIZED` | as in Authenticated requests | missing/bad/expired token |
+| 404 | `NOT_FOUND` | `Task not found` | see Task id and not found |

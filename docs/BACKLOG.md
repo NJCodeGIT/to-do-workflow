@@ -130,6 +130,7 @@ Open questions: none (all resolved at Gates A and B; see `work/S-005.md`).
 Story: As a logged-in user, I want to read, edit, complete, reopen and delete a single task, so that I can keep my list accurate.
 Covers: `GET /tasks/:id`, `PATCH /tasks/:id` (title, description, status; completing sets `completedAt`), `DELETE /tasks/:id`; another user's task returns 404.
 Depends on: S-005 (merged).
+Status: built and reviewed (Gates A and B approved; quality-tester verdict pass); awaiting merge (details in `work/S-006.md`). Gate A answers: empty patch is 400, reopen clears `completedAt`, re-complete keeps it, malformed id is 404, same-value patch keeps `updatedAt`, `description: null`/`""` clears (decisions 35-40). Final rules and messages: `docs/API_SPEC.md`.
 Acceptance (proposed defaults in brackets await Gate A, see open questions):
 - Get: `GET /api/v1/tasks/:id` for the caller's task returns `200` with a `Task` (same seven keys as S-005, no `user_id`).
 - Id format: `:id` must be a positive integer in plain decimal digits. [Proposed: anything else (`abc`, `0`, `-1`, `1.5`, `1e2`, ` 1`, an id above the safe-integer range) returns `404 NOT_FOUND`, same as a missing task, so the id format is not an oracle.] No 500 for any id string.
