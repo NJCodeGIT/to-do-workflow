@@ -3,16 +3,16 @@
 Minimal to-do web app: users register/login, then create, edit, delete, complete,
 and filter their own tasks by status. Monorepo with a REST API and an SPA.
 
-> **Status: server auth built (S-003).** The monorepo runs: health endpoint, SQLite migration
-> runner, register/login endpoints and JWT middleware, placeholder client page.
-> Client auth (S-004), tasks, and E2E are not built yet.
+> **Status: client auth built (S-004).** The monorepo runs: health endpoint, SQLite migration
+> runner, register/login endpoints and JWT middleware, client login/register/logout with route
+> guards and a placeholder home page. Tasks and E2E are not built yet.
 
 ## Stack
-- Client: React + Vite, TypeScript (`client/`)
+- Client: React + Vite, TypeScript, `react-router-dom` (`client/`)
 - Server: Node + Express, TypeScript (`server/`)
 - DB: SQLite via `better-sqlite3` (single file, no Docker)
 - Auth: email + password (argon2 hash), JWT bearer token
-- Validation: zod. Tests: Vitest, Playwright for E2E (planned). Lint/format: ESLint + Prettier
+- Validation: zod (server only). Tests: Vitest (+ Testing Library, `user-event` on the client), Playwright for E2E (planned). Lint/format: ESLint + Prettier
 - Package manager: npm workspaces
 
 ## Commands (run from repo root)
@@ -51,8 +51,11 @@ Commands were run and checked in S-001; auth config was added in S-003.
 - `server/test/` – Vitest tests; `helpers.ts` (`makeTestApp`, fake `TEST_AUTH`);
   `fixtures/` (test-only preloads)
 - `client/src/api.ts` – the only place that calls `fetch`
-- `client/src/` also holds `main.tsx`, `App.tsx`, and tests (`App.test.tsx`, `test/setup.ts`)
-- Planned, not created yet: `client/src/auth/`, `client/src/tasks/`
+- `client/src/auth/` – `AuthProvider`, `RequireAuth`/`PublicOnly` guards, `LoginPage`,
+  `RegisterPage`, `validation.ts`, `error-messages.ts`, `redirect.ts` (+ tests)
+- `client/src/` also holds `main.tsx`, `App.tsx` (routes), `HomePage.tsx` (protected placeholder),
+  and tests (`App.test.tsx`, `api.test.ts`, `test/setup.ts`, `test/render-app.tsx`)
+- Planned, not created yet: `client/src/tasks/`
 - `docs/` – detailed docs (see below)
 
 ## Architecture rules
