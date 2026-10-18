@@ -100,8 +100,14 @@ describe('session', () => {
     });
     fetchMock.mockResolvedValue(jsonResponse(200, { user: ANN, token: 'tok-1' }));
     await expect(api.login('ann@example.com', 'pw')).resolves.toEqual(ANN);
-    expect(api.getCurrentUser()).toEqual(ANN);
     spy.mockRestore();
+    expect(api.getCurrentUser()).toEqual(ANN);
+    expect(localStorage.getItem(KEY)).toBeNull();
+
+    // The in-memory token is used for later authenticated requests.
+    fetchMock.mockResolvedValue(jsonResponse(200, { ok: true }));
+    await expect(api.apiRequest('/tasks')).resolves.toEqual({ ok: true });
+    expect(sentHeaders(1)).toEqual({ Authorization: 'Bearer tok-1' });
   });
 
   it('rejects a malformed success response with UNKNOWN_ERROR and stores nothing', async () => {
@@ -165,9 +171,11 @@ describe('apiRequest', () => {
     expect(listener).toHaveBeenCalledOnce();
   });
 
-  it('does not clear a newer session when a stale request gets 401', async () => {
+  it('neither clears a newer session nor notifies when a stale request gets 401', async () => {
     storeSession('old-token');
     const api = await loadApi();
+    const listener = vi.fn();
+    api.onUnauthorized(listener);
     let respond: (res: Response) => void = () => {};
     fetchMock.mockReturnValueOnce(new Promise((resolve) => (respond = resolve)));
     const stale = api.apiRequest('/tasks').catch((e: unknown) => e);
@@ -175,10 +183,29 @@ describe('apiRequest', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { user: ANN, token: 'new-token' }));
     await api.login('ann@example.com', 'pw');
     respond(jsonResponse(401, { error: { code: 'UNAUTHORIZED', message: 'x' } }));
-    await stale;
 
+    // The stale request still rejects; only the session handling is skipped.
+    await expect(stale).resolves.toMatchObject({ status: 401, code: 'UNAUTHORIZED' });
+    expect(listener).not.toHaveBeenCalled();
     expect(api.getCurrentUser()).toEqual(ANN);
     expect(JSON.parse(localStorage.getItem(KEY)!).token).toBe('new-token');
+  });
+
+  it('does not notify when a request gets 401 after the user already logged out', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    const listener = vi.fn();
+    api.onUnauthorized(listener);
+    let respond: (res: Response) => void = () => {};
+    fetchMock.mockReturnValueOnce(new Promise((resolve) => (respond = resolve)));
+    const stale = api.apiRequest('/tasks').catch((e: unknown) => e);
+
+    api.clearSession();
+    respond(jsonResponse(401, { error: { code: 'UNAUTHORIZED', message: 'x' } }));
+
+    await expect(stale).resolves.toMatchObject({ status: 401 });
+    expect(listener).not.toHaveBeenCalled();
+    expect(api.getCurrentUser()).toBeNull();
   });
 
   it.each([
