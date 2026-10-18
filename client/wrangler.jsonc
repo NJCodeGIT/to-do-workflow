@@ -14,9 +14,9 @@
     "not_found_handling": "single-page-application",
   },
   "vars": {
-    // API origin only (no path, no trailing /api). PLACEHOLDER: replace with the real Render URL.
+    // API origin only (no path, no trailing /api). Points at the Render service todo-api.
     // This file is the source of truth: `wrangler deploy` overwrites dashboard-set vars.
     // Unset or invalid -> /api/* returns 502 {"error":{"code":"BAD_GATEWAY",...}}.
-    "API_ORIGIN": "https://todo-api.onrender.com",
+    "API_ORIGIN": "https://todo-api-fckp.onrender.com",
   },
 }
