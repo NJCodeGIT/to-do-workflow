@@ -29,7 +29,7 @@
 ## CD (client on Cloudflare Workers static assets, API on Render)
 Added in the same workflow (`ci.yml`) as jobs that all `needs: check`, so nothing deploys unless
 lint, format, typecheck, tests, and build pass. Claude must not deploy or trigger deployments; a human
-merges and approves. Not run or verified against a real Cloudflare account yet: first real run is the test.
+merges and approves. `deploy-api` and `deploy-production` have run successfully on `main`; the post-deploy checks below are still to be done by the user.
 
 | Job | Runs on | What it does |
 |---|---|---|
@@ -70,7 +70,7 @@ merges and approves. Not run or verified against a real Cloudflare account yet: 
 
 ### API reachability (Option A implemented: Worker proxy to Render)
 The API (Express + better-sqlite3) is NOT deployed to Cloudflare; it runs on Render (free web service,
-decision #43; Render setup is a delivery task, not in this repo yet). The client keeps calling the relative
+decision #43). Service `todo-api` is live at `https://todo-api-fckp.onrender.com`. The client keeps calling the relative
 path `/api/v1` (`API_BASE` in `client/src/api.ts`) and the server still sets no CORS (decision #14): the
 Worker makes `/api` same-origin.
 - `client/worker/index.ts` (plain TypeScript, minimal inline types, no dependency). `assets.run_worker_first:
@@ -90,8 +90,8 @@ Worker makes `/api` same-origin.
   is slow but succeeds.
 
 #### Setting `API_ORIGIN`
-- It is a plain var in `client/wrangler.jsonc` -> `vars.API_ORIGIN`. Currently a PLACEHOLDER
-  (`https://todo-api.onrender.com`): replace it with the real Render URL once the service exists.
+- It is a plain var in `client/wrangler.jsonc` -> `vars.API_ORIGIN`. Set to the live Render URL
+  `https://todo-api-fckp.onrender.com`.
 - Value is the origin only: scheme + host, no path, no `/api`, no trailing slash needed (any path is ignored).
 - The file is the source of truth: `wrangler deploy` overwrites vars set in the Cloudflare dashboard. Change
   it via a PR; PR previews (`versions upload`) and production use the same value.
@@ -116,7 +116,7 @@ Blueprint `render.yaml` at the repo root: service `todo-api`, runtime node, plan
   (random, stored on Render only; regenerating it logs everyone out).
 - Health check path `/api/v1/health`.
 - Verified locally (Node 22): build, then migrate on a missing temp DB path (applied `001_init.sql`), migrate again
-  ("No pending migrations."), start with `PORT=10000`, `GET /api/v1/health` -> 200 `{"status":"ok"}`. Not run on Render.
+  ("No pending migrations."), start with `PORT=10000`, `GET /api/v1/health` -> 200 `{"status":"ok"}`. Service `todo-api` is now live on Render; the deployed behavior is not yet verified (see Post-deploy checks).
 
 Free-tier caveats (accepted, decision #43/#44):
 - No persistent disk: all users and tasks are lost on every restart, redeploy, or idle spin-down.
@@ -126,7 +126,7 @@ Free-tier caveats (accepted, decision #43/#44):
 - A token issued before a restart still verifies (same `JWT_SECRET`) but its user no longer exists, so calls
   using it fail until the user registers again.
 
-#### Human setup (once)
+#### Human setup (once, done: service live, `deploy-api` ran, `API_ORIGIN` set)
 1. Render dashboard -> New -> Blueprint -> connect this GitHub repo -> branch `main` -> it reads `render.yaml`
    (`todo-api`, free, autoDeploy off). Apply. The first sync deploys once (from the branch you pick; `render.yaml`
    must exist on that branch, so merge this change first). Check the service and note its URL
@@ -135,7 +135,7 @@ Free-tier caveats (accepted, decision #43/#44):
    New repository secret `RENDER_DEPLOY_HOOK_URL` (the URL is a credential; never commit or paste it in logs/chat).
 3. Optional: repository variable (Variables tab, not a secret) `API_ORIGIN` = the Render URL, to enable the
    post-deploy health check. The check only proves reachability: the hook returns before the build finishes.
-4. Set `vars.API_ORIGIN` in `client/wrangler.jsonc` to the same Render URL via a PR (replaces the placeholder),
+4. Set `vars.API_ORIGIN` in `client/wrangler.jsonc` to the same Render URL via a PR (replaced the placeholder),
    then approve the `production` deploys on `main`.
 5. Verify: `GET https://<render-url>/api/v1/health` -> `{"status":"ok"}`, then through the Worker
    `GET <worker-url>/api/v1/health`, register, log in, create a task.
@@ -156,11 +156,12 @@ Roll the API back before the client if a contract changed.
   Client and API versions must stay compatible, so roll the API back first if a contract changed.
 
 ### Post-deploy checks
+Still to be done by the user (not yet verified):
 Production URL loads; `/login` and `/register` load directly (SPA fallback); static assets return 200;
 once the API is reachable: `GET /api/v1/health`, login, create a task.
 
 ### Follow-ups
-- Delivery: run the "API on Render" human setup, then set the real `API_ORIGIN` in `client/wrangler.jsonc`.
+- User: run the post-deploy checks above against the Worker URL (health, register, log in, create a task).
 - `JWT_SECRET` lives on Render only (generated), never in the repo.
 - For persistent data later: a paid Render plan with a disk (set `DATABASE_PATH` onto it), or another store.
 - E2E job against the preview URL once Playwright exists.

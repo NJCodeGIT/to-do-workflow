@@ -7,9 +7,11 @@ and filter their own tasks by status. Monorepo with a REST API and an SPA.
 > migration runner, register/login endpoints and JWT middleware, client login/register/logout
 > with route guards and a placeholder home page, `POST /tasks` + `GET /tasks?status=`, and
 > `GET/PATCH/DELETE /tasks/:id` (edit, complete/reopen, delete). The task UI and E2E are not built yet.
-> CD (prepared, not yet run): client deploys to Cloudflare Workers via `.github/workflows/ci.yml`
+> CD (live): client deploys to Cloudflare Workers via `.github/workflows/ci.yml`
 > (preview on PRs, `production` environment on `main`); a Worker script proxies `/api/*` to the API on
-> Render (free; `render.yaml` + `deploy-api` job prepared, not yet created on Render; `API_ORIGIN` is a placeholder). See `docs/CICD.md`.
+> Render (free; service `todo-api` live at `https://todo-api-fckp.onrender.com`, `API_ORIGIN` set; `deploy-api` and
+> `deploy-production` have run on `main`; data is wiped on restart, cold start 30-60 s). Post-deploy checks (health via Worker URL,
+> register/login/create task) are still to be done by the user. See `docs/CICD.md`.
 
 ## Stack
 - Client: React + Vite, TypeScript, `react-router-dom` (`client/`)
