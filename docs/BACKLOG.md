@@ -93,3 +93,48 @@ Tasks:
 6. [document-writer] Update `CLAUDE.md` status, `UI_SPEC.md`, verify commands.
 Dependencies needing Gate A approval: client runtime `react-router-dom` (beyond the recorded stack, flagged; alternative is a tiny hand-rolled hash/state router, which costs more code than it saves); `@testing-library/user-event` for form tests only if not already present (flagged, check `client/package.json`).
 Open questions: token storage location (see S-003 plan open question); whether home is a placeholder until the tasks stories land; depends on S-003 being merged (or at least its API contract approved).
+
+## Task roadmap (S-005 to S-012): titles only
+Added by the product-planner as a pick-list. Each entry is a high-level story. Acceptance criteria, out-of-scope notes and the task breakdown are written (and approved at Gate A) when a story is picked and run through `/feature-orchestrator`. IDs are final; order is the suggested build order. The `tasks` table already exists in `001_init.sql`, so no story needs a migration unless design finds a gap.
+
+## S-005 Task API: create and list with status filter  [Must]
+Story: As a logged-in user, I want to create tasks and list my own tasks filtered by status, so that I can capture work and see what is active or done.
+Covers: `POST /tasks`, `GET /tasks?status=active|completed|all`; every query scoped by `user_id` from the JWT.
+Depends on: S-003.
+
+## S-006 Task API: get, edit, complete/reopen, delete  [Must]
+Story: As a logged-in user, I want to read, edit, complete, reopen and delete a single task, so that I can keep my list accurate.
+Covers: `GET /tasks/:id`, `PATCH /tasks/:id` (title, description, status; completing sets `completedAt`), `DELETE /tasks/:id`; another user's task returns 404.
+Depends on: S-005.
+
+## S-007 Client: task list and status filter  [Must]
+Story: As a logged-in user, I want to see my tasks and filter them by All / Active / Completed, so that I can focus on what matters.
+Covers: `client/src/tasks/`, task calls in `api.ts`, replaces the placeholder `HomePage`; empty, loading and error states.
+Depends on: S-005, S-004.
+
+## S-008 Client: add a task  [Must]
+Story: As a logged-in user, I want a form to add a task with a title and optional description, so that I can capture work quickly.
+Covers: create form with validation messages, list updates after submit, no double submit.
+Depends on: S-007.
+
+## S-009 Client: edit a task  [Must]
+Story: As a logged-in user, I want to edit a task's title and description, so that I can correct or refine it.
+Covers: edit form (inline or page; decided in design), validation, cancel, keyboard use.
+Depends on: S-006, S-007.
+
+## S-010 Client: complete, reopen and delete a task  [Must]
+Story: As a logged-in user, I want to mark a task complete, reopen it, and delete it with a confirmation, so that my list reflects reality and stays tidy.
+Covers: complete/reopen toggle, delete with confirm, list and active filter stay correct afterwards.
+Depends on: S-006, S-007.
+
+## S-011 E2E smoke tests with accessibility checks  [Should]
+Story: As a maintainer, I want a few browser tests of the main flows with automated a11y checks, so that regressions in real user journeys are caught in CI.
+Covers: Playwright + `@axe-core/playwright` (decision 10, new dev dependencies flagged at Gate A), 3-5 tests: register/login, add, complete, filter, delete; `npm run test:e2e`; optional CI job.
+Depends on: S-008, S-009, S-010.
+
+## S-012 Production serving and release readiness  [Should]
+Story: As a maintainer, I want the built app to run as one process with a documented release and rollback checklist, so that I can deploy it confidently.
+Covers: Express serves `client/dist` with SPA fallback (decision 14, not implemented yet), build-and-run check, release checklist, versioning, rollback and backup notes in `docs/CICD.md`. Prepares only; no deploy.
+Depends on: S-010.
+
+Not planned (Won't, unless you expand scope): due dates, priorities, tags, search, sorting options, task sharing, refresh tokens, password reset, email verification, rate limiting, account deletion.
