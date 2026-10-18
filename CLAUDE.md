@@ -8,7 +8,8 @@ and filter their own tasks by status. Monorepo with a REST API and an SPA.
 > with route guards and a placeholder home page, `POST /tasks` + `GET /tasks?status=`, and
 > `GET/PATCH/DELETE /tasks/:id` (edit, complete/reopen, delete). The task UI and E2E are not built yet.
 > CD (prepared, not yet run): client deploys to Cloudflare Workers via `.github/workflows/ci.yml`
-> (preview on PRs, `production` environment on `main`); API host undecided. See `docs/CICD.md`.
+> (preview on PRs, `production` environment on `main`); a Worker script proxies `/api/*` to the API on
+> Render (free; `render.yaml` + `deploy-api` job prepared, not yet created on Render; `API_ORIGIN` is a placeholder). See `docs/CICD.md`.
 
 ## Stack
 - Client: React + Vite, TypeScript, `react-router-dom` (`client/`)
@@ -59,6 +60,8 @@ Commands were run and checked in S-001; auth config was added in S-003.
   `RegisterPage`, `validation.ts`, `error-messages.ts`, `redirect.ts` (+ tests)
 - `client/src/` also holds `main.tsx`, `App.tsx` (routes), `HomePage.tsx` (protected placeholder),
   and tests (`App.test.tsx`, `api.test.ts`, `test/setup.ts`, `test/render-app.tsx`)
+- `client/worker/` – Cloudflare Worker (`index.ts`, `main` in `client/wrangler.jsonc`) proxying `/api/*`
+  to `API_ORIGIN`; not part of the Vite build (+ `index.test.ts`)
 - Planned, not created yet: `client/src/tasks/`
 - `docs/` – detailed docs (see below)
 

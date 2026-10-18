@@ -118,3 +118,52 @@ jobs:
           wranglerVersion: '4.151.1'
           workingDirectory: client
           command: deploy
+
+  # Triggers a deploy of the API on Render through its Deploy Hook (secret RENDER_DEPLOY_HOOK_URL).
+  # Independent of deploy-production (client): both wait for approval of the `production` environment,
+  # approve this one first when an API contract changes. No checkout or install needed.
+  deploy-api:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+    concurrency:
+      group: deploy-api
+      cancel-in-progress: false
+    permissions: {}
+    steps:
+      - name: Trigger Render deploy
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::error::Secret RENDER_DEPLOY_HOOK_URL is not set."
+            exit 1
+          fi
+          # --fail turns non-2xx into a failure; -sS hides progress but keeps errors; the URL is never printed.
+          curl --fail -sS -o /dev/null --max-time 30 -X POST "$RENDER_DEPLOY_HOOK_URL" \
+            || { echo "::error::Render deploy hook request failed."; exit 1; }
+          echo "Render deploy triggered (the build continues on Render)."
+
+      # Reachability check only: the hook returns before the build finishes, so this may still hit the
+      # old instance. Skipped unless the repository variable API_ORIGIN is set. Retries cover a cold start.
+      - name: Check API health
+        env:
+          API_ORIGIN: ${{ vars.API_ORIGIN }}
+        run: |
+          if [ -z "$API_ORIGIN" ]; then
+            echo "API_ORIGIN variable not set; skipping health check."
+            exit 0
+          fi
+          for i in $(seq 1 12); do
+            if curl --fail -sS -o /dev/null --max-time 20 "${API_ORIGIN%/}/api/v1/health"; then
+              echo "API healthy."
+              exit 0
+            fi
+            echo "Attempt $i/12 failed; retrying in 10 s."
+            sleep 10
+          done
+          echo "::error::API health check failed after 12 attempts."
+          exit 1

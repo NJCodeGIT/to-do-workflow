@@ -1,0 +1,32 @@
+# Render Blueprint for the API (server/). See docs/CICD.md "API on Render" and decision #44.
+# Free web service: NO persistent disk, so the SQLite file is wiped on every restart/redeploy.
+# Migrations therefore run on every start (they are idempotent and fast on an empty DB).
+services:
+  - type: web
+    name: todo-api
+    runtime: node
+    plan: free
+    # Region is fixed at creation. Oregon is Render's default; the Cloudflare Worker proxy sits in
+    # front, so API latency matters little. Change before the first Blueprint sync if you prefer.
+    region: oregon
+    # Deploys come from GitHub Actions (Deploy Hook), never from pushes.
+    autoDeployTrigger: off
+    # `--include=dev` is required: Render sets NODE_ENV=production, which would skip the devDependencies
+    # that the build (tsc) and the migrate script (tsx) need. argon2 and better-sqlite3 use prebuilt
+    # binaries and fall back to compiling (Render's build image has the toolchain).
+    buildCommand: npm ci --include=dev && npm run build -w server
+    # Migrate first (create the empty DB + schema), then start. `&&` aborts the start if migrating fails.
+    startCommand: npm run migrate -w server && npm run start -w server
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_VERSION
+        value: '22' # matches .nvmrc; satisfies engines ^22.13.0
+      - key: NODE_ENV
+        value: production
+      # PORT is set by Render (default 10000); server/src/config.ts reads it. Do not set it here.
+      - key: DATABASE_PATH
+        value: /tmp/todo.db # ephemeral by design (free tier has no disk)
+      - key: JWT_EXPIRES_IN
+        value: 24h
+      - key: JWT_SECRET
+        generateValue: true # random value created by Render at first sync; never put a literal here
