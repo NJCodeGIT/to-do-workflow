@@ -94,13 +94,37 @@ Tasks:
 Dependencies needing Gate A approval: client runtime `react-router-dom` (beyond the recorded stack, flagged; alternative is a tiny hand-rolled hash/state router, which costs more code than it saves); `@testing-library/user-event` for form tests only if not already present (flagged, check `client/package.json`).
 Open questions: token storage location (see S-003 plan open question); whether home is a placeholder until the tasks stories land; depends on S-003 being merged (or at least its API contract approved).
 
-## Task roadmap (S-005 to S-012): titles only
-Added by the product-planner as a pick-list. Each entry is a high-level story. Acceptance criteria, out-of-scope notes and the task breakdown are written (and approved at Gate A) when a story is picked and run through `/feature-orchestrator`. IDs are final; order is the suggested build order. The `tasks` table already exists in `001_init.sql`, so no story needs a migration unless design finds a gap.
+## Task roadmap (S-005 to S-012)
+Added by the product-planner as a pick-list. S-005 is planned in full below (done); S-006 to S-012 are still titles only. Acceptance criteria, out-of-scope notes and the task breakdown for those are written (and approved at Gate A) when a story is picked and run through `/feature-orchestrator`. IDs are final; order is the suggested build order. The `tasks` table already exists in `001_init.sql`, so no story needs a migration unless design finds a gap (S-005 needed none).
 
 ## S-005 Task API: create and list with status filter  [Must]
 Story: As a logged-in user, I want to create tasks and list my own tasks filtered by status, so that I can capture work and see what is active or done.
 Covers: `POST /tasks`, `GET /tasks?status=active|completed|all`; every query scoped by `user_id` from the JWT.
 Depends on: S-003.
+Status: built and reviewed (Gates A and B approved; quality-tester verdict pass); awaiting merge (details in `work/S-005.md`). Gate A answers: description max 2000, whitespace-only/empty description stored as `null`, title trimmed before the 1-200 check, strict `status` filter, tie-break `id DESC`, body `status` ignored, no pagination. Gate B: `POST /tasks` with a deleted user's token returns 401 (decisions 32-34). Final rules and messages: `docs/API_SPEC.md`.
+Acceptance:
+- Create: `POST /api/v1/tasks {title, description?}` with a valid token returns `201` with a `Task` (`{id, title, description, status, completedAt, createdAt, updatedAt}`); `status` is `active`, `completedAt` is `null`, `createdAt`/`updatedAt` are ISO-8601 UTC strings. Any `status`, `userId`, `id`, or timestamp in the body is ignored.
+- Title is trimmed and must be 1-200 characters after trimming; missing, non-string, empty, whitespace-only, or 201+ characters returns `400 VALIDATION_ERROR` and no row is created. A 200-character title succeeds.
+- Description is optional; omitted or `null` is stored and returned as `null`; a string is trimmed (proposed max 2000 characters, see open questions); non-string or too long returns `400`. A whitespace-only string is stored as `null` (proposed).
+- Bad body (non-JSON, array, empty) returns `400` as already defined for all JSON routes.
+- List: `GET /api/v1/tasks` returns `200 {tasks:[Task]}`; no `status` param equals `all`. `status=active` returns only active tasks, `completed` only completed, `all` both.
+- Ordering: newest first by `createdAt`, ties broken by `id` descending, so the order is deterministic. Zero tasks returns `{tasks:[]}`, not an error.
+- Invalid filter (`status=done`, empty `status=`, wrong case `Active`, repeated `status=active&status=all`) returns `400 VALIDATION_ERROR`; nothing is returned.
+- Auth: both endpoints return `401 UNAUTHORIZED` with no header, bad scheme, malformed, bad-signature, or expired token (reuses S-003 middleware; no task data in the response).
+- Isolation: with tasks owned by user A and user B, A's list never contains B's tasks for any filter, and vice versa; a `userId` or `user_id` in the query string or body does not change the result or the owner. A created task belongs to the token's user (verified by listing as that user, and not visible to the other).
+- Every task SQL statement is in `server/src/db/` and filters by `user_id`; routes hold no logic, controllers hold no SQL. Responses never expose `user_id`.
+- Tests (in-memory SQLite) cover each bullet above; `npm run lint`, `npm test`, `npm run typecheck`, `npm run build` pass; `docs/API_SPEC.md` is updated with the final rules and messages.
+Out of scope: `GET /tasks/:id`, edit, complete/reopen, delete (S-006); pagination, search, sorting options, limits per user; any client UI or `api.ts` changes (S-007+); new migration (unless design finds a gap); new dependencies; rate limiting.
+Tasks:
+1. [solution-designer] Confirm task validation messages and description bound, null/empty handling, ordering tie-break, `status` query parsing (repeated or empty value), timestamp format; update `docs/API_SPEC.md` (and `docs/DB_SCHEMA.md` only if a gap is found).
+2. [app-developer] zod schemas for create body and list query; task data layer in `server/src/db/tasks.ts` (insert, list by user and status, row-to-`Task` mapping).
+3. [app-developer] Task controller and routes mounted behind the auth middleware.
+4. [test-engineer] API tests: create (valid, bounds, defaults, ignored fields), list (filters, ordering, empty), invalid filter, 401 cases, two-user isolation.
+5. [quality-tester] Review against criteria, the `user_id` scoping rule, and layering rules.
+6. [document-writer] Update `CLAUDE.md` status and folder notes (`tasks.ts`, controller, routes), verify docs match behavior.
+7. [delivery-operator] Release checklist; no CI change expected.
+Dependencies needing Gate A approval: none (existing `express`, `zod`, `better-sqlite3`, `supertest`).
+Open questions: none (all resolved at Gates A and B; see `work/S-005.md`).
 
 ## S-006 Task API: get, edit, complete/reopen, delete  [Must]
 Story: As a logged-in user, I want to read, edit, complete, reopen and delete a single task, so that I can keep my list accurate.

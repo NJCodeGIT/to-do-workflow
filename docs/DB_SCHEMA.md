@@ -30,6 +30,13 @@ CREATE INDEX idx_tasks_user_status ON tasks (user_id, status, created_at DESC);
   `password_hash` holds the full argon2id encoded string (`$argon2id$...`). No migration
   was needed for auth (S-003).
 - Timestamps are ISO-8601 UTC strings.
+- `tasks` (S-005, no migration): `title` and `description` are stored trimmed by the app.
+  `description` max 2000 chars is app-enforced only (no CHECK); empty is stored as `NULL`,
+  never `''`. `created_at`/`updated_at` come from the column defaults on insert (equal on a
+  new row). All task SQL is in `server/src/db/tasks.ts` and filters by `user_id`. The
+  `idx_tasks_user_status` index serves filtered lists; the `all` list may sort in memory,
+  fine at this scale. An insert for a missing user fails the foreign key
+  (`SQLITE_CONSTRAINT_FOREIGNKEY`), mapped to 401 (decision 34).
 - `completed_at` is set when status becomes `completed`, cleared on reopen.
 - `updated_at` is set by the app on every update.
 - Migrations: numbered files in `server/migrations/`, applied in order, tracked in a `schema_migrations` table.
