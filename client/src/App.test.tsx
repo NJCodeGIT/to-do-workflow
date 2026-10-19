@@ -13,6 +13,7 @@ vi.mock('./api', async (importOriginal) => {
     getCurrentUser: vi.fn(),
     clearSession: vi.fn(),
     onUnauthorized: vi.fn(),
+    listTasks: vi.fn(),
   };
 });
 
@@ -23,6 +24,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   unauthorizedListeners = [];
   vi.mocked(api.getCurrentUser).mockReturnValue(null);
+  vi.mocked(api.listTasks).mockResolvedValue([]);
   vi.mocked(api.onUnauthorized).mockImplementation((listener) => {
     unauthorizedListeners.push(listener);
     return () => {
@@ -48,12 +50,12 @@ describe('protected route guard', () => {
     expect(document.title).toBe('Log in - To-Do App');
   });
 
-  it('renders the home page when a session exists (no login flash)', () => {
+  it('renders the home page when a session exists (no login flash)', async () => {
     vi.mocked(api.getCurrentUser).mockReturnValue(ANN);
     renderApp(['/']);
     expect(screen.getByRole('heading', { level: 1, name: 'Your tasks' })).toBeInTheDocument();
     expect(screen.getByText('Signed in as ann@example.com')).toBeInTheDocument();
-    expect(screen.getByText('Task list coming soon.')).toBeInTheDocument();
+    expect(await screen.findByText('You have no tasks yet.')).toBeInTheDocument();
     expect(currentLocation().path).toBe('/');
     expect(document.title).toBe('Your tasks - To-Do App');
   });
@@ -158,7 +160,9 @@ describe('global 401 (session expired)', () => {
     await logInAsAnn(user);
     await screen.findByRole('heading', { name: 'Your tasks' });
     expect(currentLocation().path).toBe('/?filter=open');
-    await waitFor(() => expect(screen.queryByRole('status')).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/Your session has expired/)).not.toBeInTheDocument(),
+    );
   });
 
   it('unsubscribes from 401 notifications on unmount', () => {

@@ -3,10 +3,11 @@
 Minimal to-do web app: users register/login, then create, edit, delete, complete,
 and filter their own tasks by status. Monorepo with a REST API and an SPA.
 
-> **Status: task API built (S-005, S-006).** The monorepo runs: health endpoint, SQLite
+> **Status: task API and task list UI built (S-005, S-006, S-007).** The monorepo runs: health endpoint, SQLite
 > migration runner, register/login endpoints and JWT middleware, client login/register/logout
-> with route guards and a placeholder home page, `POST /tasks` + `GET /tasks?status=`, and
-> `GET/PATCH/DELETE /tasks/:id` (edit, complete/reopen, delete). The task UI and E2E are not built yet.
+> with route guards, `POST /tasks` + `GET /tasks?status=`, and
+> `GET/PATCH/DELETE /tasks/:id` (edit, complete/reopen, delete). The home page shows the user's task list with an
+> All/Active/Completed filter (read-only). Add/edit/complete/delete UI and E2E are not built yet.
 > CD (live): client deploys to Cloudflare Workers via `.github/workflows/ci.yml`
 > (preview on PRs, `production` environment on `main`); a Worker script proxies `/api/*` to the API on
 > Render (free; service `todo-api` live at `https://todo-api-fckp.onrender.com`, `API_ORIGIN` set; `deploy-api` and
@@ -60,11 +61,13 @@ Commands were run and checked in S-001; auth config was added in S-003.
 - `client/src/api.ts` – the only place that calls `fetch`
 - `client/src/auth/` – `AuthProvider`, `RequireAuth`/`PublicOnly` guards, `LoginPage`,
   `RegisterPage`, `validation.ts`, `error-messages.ts`, `redirect.ts` (+ tests)
-- `client/src/` also holds `main.tsx`, `App.tsx` (routes), `HomePage.tsx` (protected placeholder),
+- `client/src/` also holds `main.tsx`, `App.tsx` (routes), `HomePage.tsx` (protected home, renders the task list),
   and tests (`App.test.tsx`, `api.test.ts`, `test/setup.ts`, `test/render-app.tsx`)
 - `client/worker/` – Cloudflare Worker (`index.ts`, `main` in `client/wrangler.jsonc`) proxying `/api/*`
   to `API_ORIGIN`; not part of the Vite build (+ `index.test.ts`)
-- Planned, not created yet: `client/src/tasks/`
+- `client/src/tasks/` – task list UI: `TasksView.tsx` (container, filter in URL `?status=`),
+  `useTasks.ts` (loading hook), `TaskFilterControl.tsx`, `TaskList.tsx`, `TaskItem.tsx`,
+  `task-filter.ts` (pure helpers and texts) (+ tests). `api.ts` has `Task` and `listTasks(filter)`.
 - `docs/` – detailed docs (see below)
 
 ## Architecture rules

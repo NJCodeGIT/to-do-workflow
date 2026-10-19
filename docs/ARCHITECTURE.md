@@ -64,7 +64,13 @@
   - `client/src/auth/`: `AuthProvider` (React context: `user`, `sessionExpired`, `login`,
     `register`, `logout`; subscribes to `onUnauthorized`), `useAuth`, guards `RequireAuth` and
     `PublicOnly`, `LoginPage`, `RegisterPage`, pure `validation.ts`, `error-messages.ts`,
-    `redirect.ts`. `client/src/HomePage.tsx` is the protected placeholder home.
+    `redirect.ts`. `client/src/HomePage.tsx` is the protected home: header, `<h1>`, and `TasksView`.
+  - Client tasks (S-007; behavior in `docs/UI_SPEC.md`, decisions #45-#49): `api.ts` exports
+    `Task`, `TaskFilter` and `listTasks(filter)` (`GET /tasks?status=`, `auth: true`, response
+    checked at runtime, only the seven API keys kept). `client/src/tasks/`: `TasksView` reads the
+    filter from the URL and renders `TaskFilterControl`, a `role="status"` region, the error
+    alert with Try again, and `TaskList`/`TaskItem`; `useTasks(filter)` returns `{state, reload}`
+    and ignores stale responses; `task-filter.ts` holds pure helpers and texts. Read-only for now.
   - Wiring: `main.tsx` renders `BrowserRouter > AuthProvider > App`; `App.tsx` holds `<Routes>` only.
     Routers use `useTransitions={false}` (tests too): otherwise the location update is a
     transition and renders after the auth state update, so on logout `RequireAuth` runs before

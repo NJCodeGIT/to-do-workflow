@@ -13,7 +13,7 @@ Router: `react-router-dom`, declarative mode (`BrowserRouter` in `main.tsx`, `<R
 |---|---|---|---|
 | `/login` | public only | `LoginPage` | `Log in - To-Do App` |
 | `/register` | public only | `RegisterPage` | `Create account - To-Do App` |
-| `/` | protected | `HomePage` (placeholder until the task stories) | `Your tasks - To-Do App` |
+| `/` (optional `?status=active\|completed`, S-007) | protected | `HomePage` (task list and status filter) | `Your tasks - To-Do App` |
 | `*` (anything else) | - | `<Navigate to="/" replace />` (then the guard applies) | - |
 
 - **Protected** (`RequireAuth`): no user -> `<Navigate to="/login" replace state={{ from: location }} />`.
@@ -45,6 +45,11 @@ Router: `react-router-dom`, declarative mode (`BrowserRouter` in `main.tsx`, `<R
 7. **Reload**: the session is read synchronously from storage on start, so a logged-in user
    sees home immediately (no loading state, no login flash). A token that has expired is not
    detected until the first authenticated call returns 401 (no client-side JWT decoding, #29).
+8. **View tasks** (S-007): home loads the list for the filter in the URL (All if none). Choosing
+   Active / Completed / All pushes `/?status=active`, `/?status=completed` or `/` and loads that
+   list from the API. Back/Forward step through earlier filter choices; reload keeps the filter.
+   Visiting `/?status=active` while logged out redirects to `/login` with `from` including the
+   query, so after login the same filter is shown (Routes: `redirectTarget` keeps `search`).
 
 ## Wireframes
 
@@ -101,7 +106,8 @@ Router: `react-router-dom`, declarative mode (`BrowserRouter` in `main.tsx`, `<R
 No confirm-password field, show-password toggle, strength meter, or forgot-password link
 (out of scope for S-004).
 
-### Home placeholder (`/`)
+### Home: task list (`/`, S-007)
+Ready, with tasks (filter All):
 ```
 +--------------------------------------------------+
 |  To-Do App      Signed in as ann@example.com     |  <header>
@@ -110,12 +116,86 @@ No confirm-password field, show-password toggle, strength meter, or forgot-passw
 |                                                  |  <main>
 |  Your tasks                                <h1>  |
 |                                                  |
-|  Task list coming soon.                          |
+|  Show: [*All*] [ Active ] [ Completed ]          |  <- role=group, aria-pressed buttons
 |                                                  |
+|  3 tasks                            role=status  |  <- live region, always in the DOM
+|                                                  |
+|  - Buy milk                                      |  <ul>, newest first (API order)
+|    Active                                        |  <- status as text
+|  - Write report                                  |
+|    Two pages, include the Q3 numbers and the     |  <- description only when not null,
+|    chart from last week. Wraps, never cut off.   |     full text, wrapped, newlines kept
+|    Completed                                     |
+|  - Call Bob                                      |
+|    Active                                        |
 +--------------------------------------------------+
 ```
+`[*All*]` = the pressed button (`aria-pressed="true"`, also visually distinct, e.g. bold +
+border, not color alone).
+
+Loading (first load, filter change, or Try again):
+```
+|  Your tasks                                <h1>  |
+|  Show: [ All ] [*Active*] [ Completed ]          |
+|  Loading tasks...                   role=status  |  <- no list, no empty text, no alert
+```
+
+Empty (zero tasks for this filter; not an error):
+```
+|  Show: [ All ] [ Active ] [*Completed*]          |
+|  No completed tasks.                role=status  |  <- message depends on the filter
+```
+
+Error (any failure except 401):
+```
+|  Show: [*All*] [ Active ] [ Completed ]          |  <- still usable
+|                                     role=status  |  <- present but empty
+|  [!] Error: Could not load your tasks.           |  role=alert
+|  [ Try again ]                                   |  <- outside the alert container
+```
 The email comes from the stored session `user` (never from the token). It is rendered as
-text (React escaping); nothing is injected as HTML (#26).
+text (React escaping); nothing is injected as HTML (#26). Header, `<h1>Your tasks</h1>` and the
+document title are unchanged from S-004. Add/edit/complete/delete controls come in S-008..S-010.
+
+## Task list behavior (S-007)
+Decisions #45-#49.
+
+### Filter and URL
+- The filter is read from the URL on every render (the URL is the only source of truth; no
+  copy in component state): `searchParams.getAll('status')`; exactly one value equal to
+  `active` or `completed` -> that filter; anything else (no param, `all`, empty, unknown,
+  wrong case such as `Active`, repeated) -> All. The fallback is never sent to the API as the
+  raw value, and the URL is not rewritten (the All button is shown pressed).
+- Choosing a filter: if it equals the current one, nothing happens (no navigation, no
+  request). Otherwise navigate (push, not replace) to the same path with `status` removed and,
+  for Active/Completed, set to that value; other query params are kept. All = no `status` param.
+- Back/Forward change the URL, so the filter and list follow.
+
+### Loading, results, empty, error
+| State | Status region (`role="status"`) | Alert (`role="alert"`) | List |
+|---|---|---|---|
+| loading | `Loading tasks...` | none | none |
+| ready, 0 tasks, All | `You have no tasks yet.` | none | none |
+| ready, 0 tasks, Active | `No active tasks.` | none | none |
+| ready, 0 tasks, Completed | `No completed tasks.` | none | none |
+| ready, 1 task | `1 task` | none | `<ul>` |
+| ready, n > 1 tasks | `n tasks` (e.g. `3 tasks`) | none | `<ul>` |
+| error | empty | `Error: Could not load your tasks.` + `Try again` button after it | none |
+| 401 | not shown: global handling (Flows 6) redirects to `/login`; the page stays in loading until unmounted | - | - |
+
+- One request per filter change, per Try again, and on mount; no caching across filters, no
+  polling. A response that arrives after the filter changed (or after Try again, or after
+  unmount) is ignored. The previous filter's list is never shown under the new filter.
+- One fixed error text for network failure, 5xx, 400, malformed response, or any other non-401
+  error; server `message` text is never shown.
+- Try again repeats the request for the current filter, shows loading, and moves focus to the
+  pressed filter button (the Try again button disappears, so focus must not fall to `<body>`).
+- Item: title (plain text), description when not `null` (plain text, full length, CSS
+  `white-space: pre-wrap; overflow-wrap: anywhere` so newlines are kept and long words wrap),
+  status text `Active` / `Completed`. No dates. Title element id `task-<id>-title` (seam for
+  S-009/S-010 control labels). Order is exactly the API order.
+- Logout unmounts the page; a different user logging in gets a fresh mount and a fresh request
+  (no list is kept in memory between sessions).
 
 ## Form behavior (login and register)
 - `<form noValidate>`: the browser's built-in validation bubbles are off so our messages are
@@ -188,12 +268,22 @@ Checks run in this order per field; the first failing one is shown.
 - **Submit in flight**: the button has `disabled` and a changed label (`Logging in...` /
   `Creating account...`). Focus is restored to the email field when the request fails.
 - **Keyboard**: native `<form>`, `<input>`, `<button type="submit">`, `<a>` (router `Link`) and a
-  `<button type="button">` for logout only; no click handlers on non-interactive elements.
+  `<button type="button">` for logout, the task filter and Try again; no click handlers on non-interactive elements.
   Tab order follows the visual order (notice/alert, email, password, submit, switch link).
   Enter in any field submits. No `tabIndex` values above 0. Visible focus outline is kept
   (never `outline: none` without a replacement).
 - **Structure**: one `<h1>` per page; `<header>` holds the app name (and, on home, the user email
   and logout button); page content is in `<main>`. `document.title` is set per route (table above).
+- **Task filter** (S-007): `<div role="group" aria-labelledby="task-filter-label">` with a visible
+  `<span id="task-filter-label">Show:</span>` and three native `<button type="button">` (`All`,
+  `Active`, `Completed`) each with `aria-pressed="true|false"`. Buttons are never `disabled`
+  (the pressed one stays focusable); Tab moves between them, Enter/Space activates. The pressed
+  state is shown by more than color (e.g. bold text and a border).
+- **Task results** (S-007): one `role="status"` element is always rendered (so screen readers
+  have registered it before its text changes) and holds the loading, empty or count text.
+  The error is a separate `role="alert"` container rendered only in the error state; the
+  `Try again` button sits after it, not inside it. Status of each task is text, never color or
+  an icon alone. No autofocus on load; focus is moved only by Try again (above).
 - **Contrast**: text and error text at least 4.5:1 against the background; focus indicator at
   least 3:1.
 - No autofocus on page load.
