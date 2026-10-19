@@ -14,6 +14,7 @@ vi.mock('./api', async (importOriginal) => {
     clearSession: vi.fn(),
     onUnauthorized: vi.fn(),
     listTasks: vi.fn(),
+    updateTask: vi.fn(),
   };
 });
 

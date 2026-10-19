@@ -2,10 +2,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { createTask, type TaskFilter } from '../api';
 import {
-  addTaskErrorMessage,
   addedMessage,
   newTaskPayload,
-  validateNewTask,
+  taskErrorMessage,
+  validateTaskFields,
   type TaskFieldErrors,
 } from './task-form';
 
@@ -34,7 +34,7 @@ export default function AddTaskForm({ filter, onAdded }: Props) {
     // The flag, not only `disabled`, stops a second submit (e.g. Enter) while sending (#50).
     if (inFlight.current) return;
 
-    const errors = validateNewTask(title, description);
+    const errors = validateTaskFields(title, description);
     if (errors.title || errors.description) {
       // Render the errors (and aria-describedby) before focusing so the description is read.
       flushSync(() => {
@@ -60,7 +60,7 @@ export default function AddTaskForm({ filter, onAdded }: Props) {
       await createTask(payload);
     } catch (error) {
       inFlight.current = false;
-      const message = addTaskErrorMessage(error);
+      const message = taskErrorMessage(error);
       if (message === null) {
         // 401: the global handling (#30) clears the session and redirects; no message, no focus.
         setSubmitting(false);
