@@ -56,6 +56,12 @@ Router: `react-router-dom`, declarative mode (`BrowserRouter` in `main.tsx`, `<R
    filter's list is refetched (the new task appears first under All and Active). Under
    Completed the filter is kept and the message says the new (active) task is not shown there.
    The URL never changes. Details: "Add task form (S-008)".
+10. **Edit a task** (S-009): on home, activate a task's `Edit` button. The item turns into a
+   form pre-filled with the title and description, focus in the title. Change the text and
+   press Enter in the title or activate `Save`: the form closes, `Task updated.` is announced,
+   the current filter's list is refetched (same order, same filter) and focus returns to that
+   task's `Edit` button. `Cancel` or Escape closes the form without saving. Saving with no
+   real change just closes the form. The URL never changes. Details: "Edit task (S-009)".
 
 ## Wireframes
 
@@ -135,14 +141,19 @@ Ready, with tasks (filter All):
 |                                                  |
 |  3 tasks                            role=status  |  <- live region, always in the DOM
 |                                                  |
+|                                     role=status  |  <- edit confirmation (S-009), always in DOM
+|                                                  |
 |  - Buy milk                                      |  <ul>, newest first (API order)
 |    Active                                        |  <- status as text
+|    [ Edit ]                                      |  <- S-009, name "Edit Buy milk"
 |  - Write report                                  |
 |    Two pages, include the Q3 numbers and the     |  <- description only when not null,
 |    chart from last week. Wraps, never cut off.   |     full text, wrapped, newlines kept
 |    Completed                                     |
+|    [ Edit ]                                      |  <- completed tasks are editable too
 |  - Call Bob                                      |
 |    Active                                        |
+|    [ Edit ]                                      |
 +--------------------------------------------------+
 ```
 `[*All*]` = the pressed button (`aria-pressed="true"`, also visually distinct, e.g. bold +
@@ -171,8 +182,9 @@ Error (any failure except 401):
 The email comes from the stored session `user` (never from the token). It is rendered as
 text (React escaping); nothing is injected as HTML (#26). Header, `<h1>Your tasks</h1>` and the
 document title are unchanged from S-004. In the loading, empty and error sketches above the
-add form is omitted for brevity; it is always rendered above the filter. Edit and
-complete/delete controls come in S-009/S-010.
+add form is omitted for brevity; it is always rendered above the filter. The edit
+confirmation region (S-009) is always rendered after the list status region (empty in the
+sketches). Complete/delete controls come in S-010.
 
 ### Add task form states (S-008)
 Validation error (submit with an empty title and a 2001-character description):
@@ -234,6 +246,80 @@ Server or network error (values kept, focus to title):
 |  [ 2 litres                                 ]    |  <- value kept
 |  [ Add task ]                                    |  <- re-enabled
 |                                     role=status  |  <- empty
+```
+
+### Edit task states (S-009)
+Editing "Write report" (the form replaces that item's content inside the same `<li>`; other
+items keep their read-only view, their `Edit` buttons are disabled):
+```
+|  Show: [*All*] [ Active ] [ Completed ]          |
+|  3 tasks                            role=status  |  <- list region, unchanged
+|                                     role=status  |  <- edit confirmation, empty
+|                                                  |
+|  - Buy milk                                      |
+|    Active                                        |
+|    [ Edit ]                         disabled     |
+|  - +------------------------------------------+  |  <form aria-label="Edit task">
+|    | Title                                    |  |
+|    | [ Write report|                        ] |  |  <- pre-filled, focused, caret at end
+|    | Description (optional)                   |  |
+|    | [ Two pages, include the Q3 numbers    ] |  |  <textarea rows=3>, pre-filled
+|    | [ and the chart from last week.        ] |  |     (empty when description is null)
+|    | [ Save ] [ Cancel ]                      |  |
+|    +------------------------------------------+  |
+|  - Call Bob                                      |
+|    Active                                        |
+|    [ Edit ]                         disabled     |
+```
+
+Validation error (Save with an empty title):
+```
+|    | Title                                    |  |
+|    | [                                      ] |  |  <- aria-invalid, focused
+|    | Enter a title.                           |  |  <- id task-<id>-edit-title-error
+|    | Description (optional)                   |  |
+|    | [ Two pages, ...                       ] |  |
+|    | [ Save ] [ Cancel ]                      |  |
+```
+
+Saving (inputs stay editable; the payload was fixed at submit):
+```
+|    | [ Saving... ] [ Cancel ]   both disabled |  |  <- Escape ignored too
+```
+
+Server or network error (form stays open, values kept, focus to title):
+```
+|    | [!] Error: Something went wrong. Please  |  |  role=alert, first child of the form
+|    |     try again.                           |  |
+|    | Title                                    |  |
+|    | [ Write the report                     ] |  |  <- value kept, focused
+|    | Description (optional)                   |  |
+|    | [ Two pages, ...                       ] |  |
+|    | [ Save ] [ Cancel ]                      |  |  <- re-enabled
+```
+
+After a successful save (list refetched: `Loading tasks...` briefly, then the new list):
+```
+|  3 tasks                            role=status  |
+|  Task updated.                      role=status  |  <- edit confirmation region
+|                                                  |
+|  - Buy milk                                      |
+|    Active                                        |
+|    [ Edit ]                                      |  <- enabled again
+|  - Write the report                              |  <- new values, same position
+|    Two pages, ...                                |
+|    Completed                                     |
+|    [ Edit ]                                      |  <- focused (if focus was lost)
+```
+
+Task gone (save answered 404; form closed, list refetched without it):
+```
+|  2 tasks                            role=status  |
+|                                     role=status  |  <- edit confirmation, empty
+|  [!] Error: This task no longer exists.          |  role=alert, outside any item
+|                                                  |
+|  - Buy milk                                      |
+|  ...                                             |
 ```
 
 ## Task list behavior (S-007)
@@ -366,6 +452,141 @@ announcement on filter clicks). The filter and URL are never changed by adding.
   creates a second, identical task. Accepted (#53): no idempotency key without an API change.
   The user sees both after the next list load and can delete one (S-010).
 
+## Edit task (S-009)
+Decisions #54-#57. Inline edit inside the task's `<li>`; no modal, no route, no URL change.
+Components in `client/src/tasks/`: `TaskItem` (read-only view + `Edit` button, or the form),
+`EditTaskForm.tsx` (new: draft, validation, request), `TaskList` (passes edit props through),
+`TasksView` (which task is open, confirmation, 404 alert, refetch and focus). Pure rules and
+texts in `task-form.ts`; the data call is `updateTask` in `client/src/api.ts`.
+
+### Who owns what
+| State | Owner | Notes |
+|---|---|---|
+| which task is open (`editing: {id, tasks}`) | `TasksView` | valid only while `state.kind === 'ready'` and `state.tasks` is the same array it was opened on (#54) |
+| draft title/description, field errors, form error, `submitting`, in-flight ref | `EditTaskForm` | lost when the form unmounts (accepted, #54) |
+| `Task updated.` text, 404 alert text | `TasksView` | own regions, not the list region, not the add region |
+| pending focus task id (ref) | `TasksView` | applied when the list is back (#56) |
+| `Edit` button elements (`Map<id, HTMLButtonElement>` ref) | `TasksView` | filled by a callback ref on each item's `Edit` button |
+
+`editingId` is derived during render:
+`state.kind === 'ready' && editing !== null && editing.tasks === state.tasks ? editing.id : null`.
+Every list replacement (reload after Add, Try again, filter change by click or Back/Forward,
+reload after a save) produces a new array, so the form closes and the draft is dropped without
+any extra handler or effect. On the first render where the list is not ready or not that
+array, TasksView also sets `editing` to `null` (state adjusted during render, no effect), so the
+close is final: a returning list never reopens a form by itself, even when `useTasks` hands back
+the same earlier outcome after a quick filter round trip (e.g. Active -> All -> Active, or
+Back/Forward, before the All request answers).
+
+### Read-only item (`TaskItem`, not editing)
+- As before (title `<p id="task-<id>-title">`, description when not `null`, status text), then
+  `<button type="button" id="task-<id>-edit" aria-labelledby="task-<id>-edit task-<id>-title">Edit</button>`.
+  Accessible name `Edit <title>` (visible text `Edit` is at the start of the name).
+- `disabled` when another task is being edited (`editingId !== null`). Shown for Active and
+  Completed tasks.
+- Activating it (click, Enter, Space) calls `onEdit(task.id)`: TasksView sets
+  `editing = {id, tasks: state.tasks}` and clears the edit confirmation and the 404 alert.
+
+### Edit form (`EditTaskForm`, replaces the item's content inside the same `<li>`)
+- Props: `task`, `onClose()`, `onSaved()`, `onNotFound()`.
+- `<form noValidate aria-label="Edit task">`, then, in order: form-level alert (only when set,
+  `<div role="alert"><p>Error: <message></p></div>`), `<label htmlFor="task-<id>-edit-title">Title</label>`
+  + `<input id="task-<id>-edit-title" type="text" name="title" autoComplete="off">` + error
+  `<p id="task-<id>-edit-title-error">` when set; `<label htmlFor="task-<id>-edit-description">Description (optional)</label>`
+  + `<textarea id="task-<id>-edit-description" name="description" rows={3}>` + error
+  `<p id="task-<id>-edit-description-error">` when set; `<button type="submit">Save</button>`
+  (`Saving...` and `disabled` in flight); `<button type="button">Cancel</button>` (`disabled` in flight).
+- Initial values: `task.title`; `task.description ?? ''`.
+- On mount (effect): focus the title input and put the caret at the end
+  (`setSelectionRange(len, len)`). No `autoFocus`, `required` or `maxLength` attributes.
+- Field errors as in the add form: `aria-invalid="true"` + `aria-describedby="<id>-error"`;
+  editing a field clears its own error; the form error stays until the next Save.
+
+### Save flow
+1. `preventDefault`. If the in-flight ref is set, return (no second request; Enter is caught too).
+2. Validate the current values with the shared rules (S-008 table: `Enter a title.`,
+   `Title must be at most 200 characters.`, `Description must be at most 2000 characters.`;
+   200 / 2000 after trim accepted). Invalid -> clear the form error, show field errors (render
+   before focusing, `flushSync`), focus the first invalid field, send nothing.
+3. Build the patch with `editTaskPatch(task, title, description)` (below). `null` (nothing
+   changed) -> call `onClose()`: form closes, no request, no message, focus to this item's `Edit`.
+4. Otherwise set the in-flight ref, clear errors, set `submitting` (Save shows `Saving...`,
+   Save and Cancel disabled), call `updateTask(task.id, patch)`. Inputs stay editable; the
+   payload is not changed by later typing.
+5. Response handling (only if the form is still mounted; see "Late responses"):
+   - success -> clear the ref, call `onSaved()`. The returned task is not used (the list is refetched).
+   - `ApiError` 404 -> clear the ref, call `onNotFound()`.
+   - 401 -> clear the ref, `submitting = false`, nothing else (global handling, Flows 6).
+   - anything else -> clear the ref, `submitting = false`, set the form error from
+     `taskErrorMessage(error)` (table below), keep the values, focus the title input.
+
+### Patch (`editTaskPatch` in `task-form.ts`, #55)
+Compares trimmed draft values with the task as shown (exact string comparison after trim, so
+a case-only change is a change, matching #39):
+| Draft vs task | Sent |
+|---|---|
+| `title.trim() !== task.title` | `title: title.trim()` |
+| `description.trim() !== (task.description ?? '')`, trimmed value not empty | `description: description.trim()` |
+| same, trimmed value empty (task had text) | `description: null` |
+| neither changed (incl. whitespace-only edits) | nothing: helper returns `null`, no request |
+
+Never `status`, `id`, `userId` or timestamps. Never `{}` (decision #35).
+
+### Close, cancel and keyboard
+- `Cancel` (click/Enter/Space) and Escape pressed anywhere inside the form (`onKeyDown` on the
+  `<form>`, key `Escape`, ignored when `event.nativeEvent.isComposing` or while in flight) call
+  `onClose()`: discard the draft silently, no request, no message.
+- `onClose()` in TasksView: `flushSync(() => setEditing(null))`, then focus the item's `Edit`
+  button from the button map (it is enabled again because nothing is being edited).
+- Enter in the title submits (native form submit). Enter in the description inserts a newline.
+- Tab order: Title, Description, Save, Cancel. No `tabIndex` above 0.
+
+### After success (`onSaved`, TasksView)
+1. `setEditing(null)`, set the edit confirmation to `Task updated.` (cleared again only when the
+   next `Edit` is opened, so a repeated save is announced again), clear the 404 alert.
+2. `pendingFocusId.current = task id`, then `reload()` (#47): the list region shows
+   `Loading tasks...`, then the API order. Filter and URL unchanged; the edited task stays in
+   place because status and `createdAt` did not change.
+3. An effect in TasksView on `[state]`: when `pendingFocusId.current !== null` and
+   `state.kind !== 'loading'`, take the id, set the ref to `null`, and, **only if focus is lost**
+   (`document.activeElement` is `null` or `document.body`), focus that task's `Edit` button if it
+   is in the map, else the pressed filter button (`pressedRef`, #48). A user who moved focus
+   elsewhere (e.g. into the Add form) during the refetch is not interrupted.
+4. A failed refetch shows the S-007 list error (`Error: Could not load your tasks.` + Try again);
+   `Task updated.` stays (the save did succeed); focus goes to the pressed filter button (step 3).
+
+### Task gone (`onNotFound`, TasksView)
+`setEditing(null)`, clear the confirmation, set the 404 alert to `This task no longer exists.`
+(fixed text, rendered `Error: This task no longer exists.`), set the pending focus id, `reload()`.
+The task is no longer in the refetched list, so focus falls back to the pressed filter button
+(if lost). No retry is offered. The alert is cleared when the next `Edit` is opened.
+
+### Errors -> form-level message (`taskErrorMessage`, shared with the add form, #57)
+| Result of `updateTask` | Message (rendered `Error: <message>` in the form's `role="alert"`) |
+|---|---|
+| 400 `VALIDATION_ERROR` with a non-empty message | the server's message, verbatim |
+| network failure (status 0) | `Could not reach the server. Check your connection and try again.` |
+| 5xx, other status, malformed or empty 200 body, non-`ApiError` | `Something went wrong. Please try again.` |
+| 404 | not a form message: "Task gone" above |
+| 401 | none (global handling) |
+
+PATCH is idempotent, so retrying after a lost response is safe (unlike add, #53).
+
+### Interaction with the rest of the page
+- Editing does not disable the Add form or the filter. A successful Add, a filter change
+  (click or Back/Forward) or anything else that replaces the list closes the form and drops the
+  draft (derived `editingId`). Try again only exists in the list error state, where no list (and
+  so no form) is shown.
+- Late responses: if the form unmounted while its request was in flight (the list was replaced),
+  the result is ignored (a `mounted` ref in `EditTaskForm`): no message, no reload, no focus, so
+  it can never close another task's form. The server may still have applied the change; the
+  next list load shows it. Accepted (#57).
+- Last write wins; no conflict detection (out of scope).
+- Region order in TasksView: Add form section, filter, list status (`role="status"`), edit
+  confirmation (`role="status"`, always rendered), 404 alert (`role="alert"`, only when set),
+  list error alert + Try again, list. `Task added.` and `Task updated.` live in separate regions
+  and do not clear each other; both may be visible at once (each is still true).
+
 ## Form behavior (login and register)
 - `<form noValidate>`: the browser's built-in validation bubbles are off so our messages are
   the only ones (consistent text, consistent announcement). Inputs still use `type="email"` /
@@ -436,10 +657,10 @@ Checks run in this order per field; the first failing one is shown.
   "Error:" prefix is optional).
 - **Session-expired notice**: `role="status"` (polite), on the login page only.
 - **Submit in flight**: the button has `disabled` and a changed label (`Logging in...` /
-  `Creating account...` / `Adding...`). Focus is restored to the email field (auth forms) or the
-  title field (add task) when the request fails.
+  `Creating account...` / `Adding...` / `Saving...`). Focus is restored to the email field (auth
+  forms) or the title field (add task, edit task) when the request fails.
 - **Keyboard**: native `<form>`, `<input>`, `<button type="submit">`, `<a>` (router `Link`) and a
-  `<button type="button">` for logout, the task filter and Try again; no click handlers on non-interactive elements.
+  `<button type="button">` for logout, the task filter, Try again, `Edit` and `Cancel`; no click handlers on non-interactive elements.
   Tab order follows the visual order (notice/alert, email, password, submit, switch link).
   Enter in any field submits. No `tabIndex` values above 0. Visible focus outline is kept
   (never `outline: none` without a replacement).
@@ -454,7 +675,8 @@ Checks run in this order per field; the first failing one is shown.
   have registered it before its text changes) and holds the loading, empty or count text.
   The error is a separate `role="alert"` container rendered only in the error state; the
   `Try again` button sits after it, not inside it. Status of each task is text, never color or
-  an icon alone. No autofocus on load; focus is moved only by Try again (above).
+  an icon alone. No autofocus on load; focus is moved only by Try again (above) and the edit
+  flow (S-009, below).
 - **Add task form** (S-008): ids `add-task-title`, `add-task-description` with visible labels
   (`Title`, `Description (optional)`); field errors as in the auth forms (`<id>-error`,
   `aria-invalid="true"`, `aria-describedby`, not `role="alert"`, announced by focusing the first
@@ -466,6 +688,19 @@ Checks run in this order per field; the first failing one is shown.
   `Add task` by Enter/Space. Focus moves only after a submit: to the first invalid field, or to
   the title after success or a non-401 error. No autofocus on page load. Submitted text is
   rendered as plain text only (#26), so a title like `<b>x</b>` shows literally.
+- **Edit task** (S-009): each item's `Edit` is a native `<button type="button">` named
+  `Edit <title>` via `aria-labelledby="task-<id>-edit task-<id>-title"`; disabled while another
+  task is open. The form is named `Edit task` (`aria-label`); per-task ids
+  `task-<id>-edit-title`, `task-<id>-edit-description` (+ `-error`) are unique on the page;
+  visible labels `Title`, `Description (optional)`; field errors as in the add form; form error
+  `role="alert"` inside the form above the fields. Confirmation `Task updated.` in its own
+  always-rendered `role="status"` in TasksView; `This task no longer exists.` in a
+  `role="alert"` rendered only when set. Focus: Edit -> title (caret at end); Cancel, Escape
+  and an unchanged Save -> that item's `Edit`; invalid Save -> first invalid field; error ->
+  title; success -> that item's `Edit` once the list is back, 404 or failed refetch -> the
+  pressed filter button (both only if focus was lost). Keyboard: Tab Title, Description, Save,
+  Cancel; Enter in title saves, Enter in description is a newline, Escape cancels (not while
+  saving). Edited text is plain text only (#26), in the inputs and in the list.
 - **Contrast**: text and error text at least 4.5:1 against the background; focus indicator at
   least 3:1.
 - No autofocus on page load.

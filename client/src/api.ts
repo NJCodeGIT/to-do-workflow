@@ -285,6 +285,23 @@ export async function createTask(input: { title: string; description?: string })
   return toTask(data);
 }
 
+/** Fields an edit may change (S-009, #55). `null` clears the description. No `status` yet (S-010). */
+export type TaskPatch = { title?: string; description?: string | null };
+
+/**
+ * PATCH /tasks/:id (S-009, decision #55). Sends only the keys of `patch` that are not undefined
+ * (`description: null` is kept). Authenticated, so a 401 goes through the global handling (#30).
+ * A malformed body throws `ApiError(status, 'UNKNOWN_ERROR')`.
+ */
+export async function updateTask(id: number, patch: TaskPatch): Promise<Task> {
+  const body: TaskPatch = {};
+  if (patch.title !== undefined) body.title = patch.title;
+  if (patch.description !== undefined) body.description = patch.description;
+  const { status, data } = await send(`/tasks/${id}`, { method: 'PATCH', body });
+  if (!isTask(data)) throw new ApiError(status, 'UNKNOWN_ERROR');
+  return toTask(data);
+}
+
 export function getHealth(): Promise<{ status: string }> {
   return apiRequest<{ status: string }>('/health', { auth: false });
 }

@@ -471,3 +471,141 @@ describe('createTask', () => {
     });
   });
 });
+
+describe('updateTask', () => {
+  const UPDATED = {
+    id: 9,
+    title: 'Buy oat milk',
+    description: null,
+    status: 'completed',
+    completedAt: '2026-01-02T10:00:00.000Z',
+    createdAt: '2026-01-01T10:00:00.000Z',
+    updatedAt: '2026-01-03T10:00:00.000Z',
+  };
+
+  it('sends PATCH /tasks/:id with the bearer token and returns exactly the seven keys', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(jsonResponse(200, { ...UPDATED, userId: 1 }));
+    const updated = await api.updateTask(9, { title: 'Buy oat milk', description: null });
+    expect(updated).toEqual(UPDATED);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('/api/v1/tasks/9');
+    expect(init?.method).toBe('PATCH');
+    expect(JSON.parse(init?.body as string)).toEqual({ title: 'Buy oat milk', description: null });
+    expect(sentHeaders()).toEqual({
+      Authorization: 'Bearer tok-1',
+      'Content-Type': 'application/json',
+    });
+  });
+
+  it('sends only the defined keys and keeps description null', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(200, UPDATED)));
+    await api.updateTask(9, { title: 'Buy oat milk', description: undefined });
+    await api.updateTask(9, { description: null });
+    await api.updateTask(9, { description: 'Two litres' });
+    expect(fetchMock.mock.calls.map((c) => c[1]?.body)).toEqual([
+      '{"title":"Buy oat milk"}',
+      '{"description":null}',
+      '{"description":"Two litres"}',
+    ]);
+  });
+
+  it('uses the id in the URL and does not drop an empty-string title', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(jsonResponse(200, UPDATED));
+    await api.updateTask(123, { title: '' });
+    expect(fetchMock.mock.calls[0]![0]).toBe('/api/v1/tasks/123');
+    expect(fetchMock.mock.calls[0]![1]?.body).toBe('{"title":""}');
+  });
+
+  it('does not call the server without a session and notifies', async () => {
+    const api = await loadApi();
+    const listener = vi.fn();
+    api.onUnauthorized(listener);
+    await expect(api.updateTask(9, { title: 'x' })).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it('rejects other malformed 200 shapes (missing key, wrong type, array, unparseable)', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    const missing: Record<string, unknown> = { ...UPDATED };
+    delete missing.updatedAt;
+    for (const body of [
+      missing,
+      { ...UPDATED, id: '9' },
+      { ...UPDATED, description: 5 },
+      { ...UPDATED, title: null },
+      [UPDATED],
+    ]) {
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, body));
+      await expect(api.updateTask(9, { title: 'x' })).rejects.toMatchObject({
+        status: 200,
+        code: 'UNKNOWN_ERROR',
+      });
+    }
+    fetchMock.mockResolvedValueOnce(new Response('<html>', { status: 200 }));
+    await expect(api.updateTask(9, { title: 'x' })).rejects.toMatchObject({
+      code: 'UNKNOWN_ERROR',
+    });
+  });
+
+  it('rejects a malformed or empty 200 body with UNKNOWN_ERROR', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ...UPDATED, status: 'done' }));
+    await expect(api.updateTask(9, { title: 'x' })).rejects.toMatchObject({
+      status: 200,
+      code: 'UNKNOWN_ERROR',
+    });
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, null));
+    await expect(api.updateTask(9, { title: 'x' })).rejects.toMatchObject({
+      status: 200,
+      code: 'UNKNOWN_ERROR',
+    });
+  });
+
+  it.each([
+    [400, 'VALIDATION_ERROR', 'title must not be empty'],
+    [404, 'NOT_FOUND', 'Task not found'],
+    [500, 'INTERNAL_ERROR', 'Internal error'],
+  ])('maps a %i to ApiError with the server code and message', async (status, code, message) => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(jsonResponse(status, { error: { code, message } }));
+    await expect(api.updateTask(9, { title: 'x' })).rejects.toMatchObject({
+      status,
+      code,
+      message,
+    });
+  });
+
+  it('maps a network failure to status 0 NETWORK_ERROR', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(api.updateTask(9, { title: 'x' })).rejects.toMatchObject({
+      status: 0,
+      code: 'NETWORK_ERROR',
+    });
+  });
+
+  it('clears the session and notifies on 401', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    const listener = vi.fn();
+    api.onUnauthorized(listener);
+    fetchMock.mockResolvedValue(
+      jsonResponse(401, { error: { code: 'UNAUTHORIZED', message: 'Invalid or expired token' } }),
+    );
+    await expect(api.updateTask(9, { title: 'x' })).rejects.toMatchObject({ status: 401 });
+    expect(api.getCurrentUser()).toBeNull();
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(listener).toHaveBeenCalledOnce();
+  });
+});

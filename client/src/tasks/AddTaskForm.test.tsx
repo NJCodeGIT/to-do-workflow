@@ -23,6 +23,7 @@ vi.mock('../api', async (importOriginal) => {
     onUnauthorized: vi.fn(),
     listTasks: vi.fn(),
     createTask: vi.fn(),
+    updateTask: vi.fn(),
   };
 });
 
@@ -96,9 +97,10 @@ const descriptionInput = () => screen.getByLabelText('Description (optional)');
 const addButton = () => screen.getByRole('button', { name: /^(Add task|Adding\.\.\.)$/ });
 const addSection = () => screen.getByRole('region', { name: 'Add a task' });
 const addStatus = () => within(addSection()).getByRole('status');
+// The list's results region comes before the edit confirmation region (S-009).
 const listStatus = () => {
   const regions = screen.getAllByRole('status').filter((el) => !addSection().contains(el));
-  expect(regions).toHaveLength(1);
+  expect(regions).toHaveLength(2);
   return regions[0]!;
 };
 const formAlert = () => within(addSection()).queryByRole('alert');

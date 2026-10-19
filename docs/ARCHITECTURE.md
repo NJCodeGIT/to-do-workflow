@@ -75,7 +75,15 @@
     `createTask({ title, description? })` (`POST /tasks`, `auth: true`, 201 body checked with
     `isTask`). `AddTaskForm` is the first child of `TasksView` (above the filter), validates on
     submit with the pure `task-form.ts`, guards double submit with a ref flag, and calls `reload`
-    after success. Edit, complete/reopen and delete UI are not built yet.
+    after success.
+  - Client edit (S-009; behavior in `docs/UI_SPEC.md`, decisions #54-#57): `api.ts` adds
+    `updateTask(id, patch)` (`PATCH /tasks/:id`, `auth: true`, only defined keys sent, 200 body
+    checked with `isTask`; `TaskPatch` has no `status`). `TaskItem` shows an `Edit` button or, when
+    open, `EditTaskForm` (draft, validation, in-flight guard). `TasksView` owns which task is open
+    (`editing = {id, tasks}`, closed whenever the list array is replaced), the `Task updated.`
+    status, the 404 alert, and focus after the refetch. `task-form.ts` has `editTaskPatch`
+    (changed fields only) and the shared `validateTaskFields`/`taskErrorMessage`. Complete/reopen
+    and delete UI are not built yet.
   - Wiring: `main.tsx` renders `BrowserRouter > AuthProvider > App`; `App.tsx` holds `<Routes>` only.
     Routers use `useTransitions={false}` (tests too): otherwise the location update is a
     transition and renders after the auth state update, so on logout `RequireAuth` runs before
