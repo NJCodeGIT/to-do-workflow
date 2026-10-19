@@ -93,7 +93,13 @@ function renderHome(initialEntries: InitialEntry[] = ['/']) {
   return { user, ...result };
 }
 
-const statusRegion = () => screen.getByRole('status');
+// The list's results region; the add form (S-008) has its own status region inside its section.
+const statusRegion = () => {
+  const addForm = screen.getByRole('region', { name: 'Add a task' });
+  const regions = screen.getAllByRole('status').filter((el) => !addForm.contains(el));
+  expect(regions).toHaveLength(1);
+  return regions[0]!;
+};
 const filterButton = (name: string) => screen.getByRole('button', { name });
 
 describe('task list states', () => {

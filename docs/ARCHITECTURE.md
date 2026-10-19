@@ -70,7 +70,12 @@
     checked at runtime, only the seven API keys kept). `client/src/tasks/`: `TasksView` reads the
     filter from the URL and renders `TaskFilterControl`, a `role="status"` region, the error
     alert with Try again, and `TaskList`/`TaskItem`; `useTasks(filter)` returns `{state, reload}`
-    and ignores stale responses; `task-filter.ts` holds pure helpers and texts. Read-only for now.
+    and ignores stale responses; `task-filter.ts` holds pure helpers and texts.
+  - Client add form (S-008; behavior in `docs/UI_SPEC.md`, decisions #50-#53): `api.ts` adds
+    `createTask({ title, description? })` (`POST /tasks`, `auth: true`, 201 body checked with
+    `isTask`). `AddTaskForm` is the first child of `TasksView` (above the filter), validates on
+    submit with the pure `task-form.ts`, guards double submit with a ref flag, and calls `reload`
+    after success. Edit, complete/reopen and delete UI are not built yet.
   - Wiring: `main.tsx` renders `BrowserRouter > AuthProvider > App`; `App.tsx` holds `<Routes>` only.
     Routers use `useTransitions={false}` (tests too): otherwise the location update is a
     transition and renders after the auth state update, so on logout `RequireAuth` runs before
