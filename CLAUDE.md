@@ -7,7 +7,7 @@ and filter their own tasks by status. Monorepo with a REST API and an SPA.
 > migration runner, register/login endpoints and JWT middleware, client login/register/logout
 > with route guards, `POST /tasks` + `GET /tasks?status=`, and
 > `GET/PATCH/DELETE /tasks/:id` (edit, complete/reopen, delete). The home page shows the user's task list with an
-> All/Active/Completed filter and an add-task form (title, optional description; S-008). Tasks can be edited inline (title and description; S-009). Complete/reopen and delete UI and E2E are not built yet.
+> All/Active/Completed filter and an add-task form (title, optional description; S-008). Tasks can be edited inline (title and description; S-009). Complete/reopen and delete UI are not built yet; E2E smoke tests (Playwright) cover the flows that exist.
 > CD (live): client deploys to Cloudflare Workers via `.github/workflows/ci.yml`
 > (preview on PRs, `production` environment on `main`); a Worker script proxies `/api/*` to the API on
 > Render (free; service `todo-api` live at `https://todo-api-fckp.onrender.com`, `API_ORIGIN` set; `deploy-api` and
@@ -19,7 +19,7 @@ and filter their own tasks by status. Monorepo with a REST API and an SPA.
 - Server: Node + Express, TypeScript (`server/`)
 - DB: SQLite via `better-sqlite3` (single file, no Docker)
 - Auth: email + password (argon2 hash), JWT bearer token
-- Validation: zod (server only). Tests: Vitest (+ Testing Library, `user-event` on the client), Playwright for E2E (planned). Lint/format: ESLint + Prettier
+- Validation: zod (server only). Tests: Vitest (+ Testing Library, `user-event` on the client), Playwright + axe for E2E. Lint/format: ESLint + Prettier
 - Package manager: npm workspaces
 
 ## Commands (run from repo root)
@@ -36,7 +36,8 @@ Commands were run and checked in S-001; auth config was added in S-003.
 - Dev server only / client only: `npm run dev:server` / `npm run dev:client`
   (same as `npm run dev -w server` / `npm run dev -w client`)
 - Test: `npm test` (all), `npm test -w server`, or `npm test -w client`
-- E2E (planned, not installed; needs Playwright): `npm run test:e2e`
+- E2E: `npm run test:e2e` (Playwright + axe in `e2e/`; starts API and client on 3001/5173 with a temporary DB;
+  first time `npx playwright install chromium`, or set `PW_CHROMIUM_PATH`; CI job `e2e`)
 - Lint: `npm run lint` · Format: `npm run format` · Format check: `npm run format:check`
   (lint and format are root-only, no `-w` form)
 - Typecheck: `npm run typecheck` · Build: `npm run build` (both also work with `-w server|client`)

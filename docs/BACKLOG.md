@@ -308,6 +308,7 @@ Depends on: S-006, S-007.
 ## S-011 E2E smoke tests with accessibility checks  [Should]
 Story: As a maintainer, I want a few browser tests of the main flows with automated a11y checks, so that regressions in real user journeys are caught in CI.
 Covers: Playwright + `@axe-core/playwright` (decision 10, new dev dependencies flagged at Gate A), 3-5 tests: register/login, add, complete, filter, delete; `npm run test:e2e`; optional CI job.
+Status: setup done outside the pipeline (Playwright, axe, CI `e2e` job, smoke flows for register/login/logout, route guard, add, edit, filter, user isolation, axe on login/register/task list). Still to add with S-010: complete, reopen, delete flows.
 Depends on: S-008, S-009, S-010.
 
 ## S-012 Production serving and release readiness  [Should]
