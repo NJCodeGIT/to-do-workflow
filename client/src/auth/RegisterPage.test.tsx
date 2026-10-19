@@ -14,6 +14,7 @@ vi.mock('../api', async (importOriginal) => {
     getCurrentUser: vi.fn(),
     clearSession: vi.fn(),
     onUnauthorized: vi.fn(),
+    listTasks: vi.fn(),
   };
 });
 
@@ -22,6 +23,7 @@ const ANN = { id: 1, email: 'ann@example.com' };
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(api.getCurrentUser).mockReturnValue(null);
+  vi.mocked(api.listTasks).mockResolvedValue([]);
   vi.mocked(api.onUnauthorized).mockReturnValue(() => {});
 });
 

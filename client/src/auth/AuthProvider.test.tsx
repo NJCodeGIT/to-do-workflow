@@ -37,6 +37,8 @@ beforeEach(() => {
   localStorage.clear();
   api.clearSession();
   fetchMock.mockReset();
+  // Default for requests not queued with *Once (the home page's task list, S-007).
+  fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(200, { tasks: [] })));
   vi.stubGlobal('fetch', fetchMock);
 });
 
@@ -78,7 +80,7 @@ describe('AuthProvider with the real api module', () => {
     expect(await stale.result).toMatchObject({ status: 401, code: 'UNAUTHORIZED' });
     expect(screen.getByRole('heading', { level: 1, name: 'Your tasks' })).toBeInTheDocument();
     expect(screen.getByText('Signed in as ann@example.com')).toBeInTheDocument();
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Your session has expired/)).not.toBeInTheDocument();
     expect(currentLocation().path).toBe('/');
     expect(JSON.parse(localStorage.getItem('todo.session')!).token).toBe('new-token');
   });

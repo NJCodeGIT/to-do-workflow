@@ -259,3 +259,107 @@ describe('apiRequest', () => {
     expect(sentHeaders()).toEqual({});
   });
 });
+
+describe('listTasks', () => {
+  const TASK = {
+    id: 7,
+    title: 'Buy milk',
+    description: null,
+    status: 'active',
+    completedAt: null,
+    createdAt: '2026-01-01T10:00:00.000Z',
+    updatedAt: '2026-01-01T10:00:00.000Z',
+  };
+  const DONE = {
+    ...TASK,
+    id: 8,
+    description: 'Two pages',
+    status: 'completed',
+    completedAt: '2026-01-02T10:00:00.000Z',
+  };
+
+  it.each(['all', 'active', 'completed'] as const)(
+    'sends GET /tasks?status=%s with the bearer token',
+    async (filter) => {
+      storeSession('tok-1');
+      const api = await loadApi();
+      fetchMock.mockResolvedValue(jsonResponse(200, { tasks: [] }));
+      await expect(api.listTasks(filter)).resolves.toEqual([]);
+      const [url, init] = fetchMock.mock.calls[0]!;
+      expect(url).toBe(`/api/v1/tasks?status=${filter}`);
+      expect(init?.method).toBe('GET');
+      expect(sentHeaders()).toEqual({ Authorization: 'Bearer tok-1' });
+    },
+  );
+
+  it('returns the tasks in API order with exactly the seven keys', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { tasks: [{ ...TASK, userId: 99, extra: 'x' }, DONE], more: 1 }),
+    );
+    const tasks = await api.listTasks('all');
+    expect(tasks).toEqual([TASK, DONE]);
+    expect(Object.keys(tasks[0]!).sort()).toEqual(Object.keys(TASK).sort());
+  });
+
+  it.each([
+    ['no tasks key', { items: [] }],
+    ['tasks not an array', { tasks: {} }],
+    ['array body', [TASK]],
+    ['null body', null],
+    ['task with string id', { tasks: [{ ...TASK, id: '7' }] }],
+    ['task with missing title', { tasks: [{ ...TASK, title: undefined }] }],
+    ['task with numeric description', { tasks: [{ ...TASK, description: 5 }] }],
+    ['task with unknown status', { tasks: [{ ...TASK, status: 'done' }] }],
+    ['task with missing completedAt', { tasks: [{ ...TASK, completedAt: undefined }] }],
+    ['task with null createdAt', { tasks: [{ ...TASK, createdAt: null }] }],
+    ['task with missing updatedAt', { tasks: [{ ...TASK, updatedAt: undefined }] }],
+    ['null element', { tasks: [TASK, null] }],
+  ])('rejects a malformed body (%s) with UNKNOWN_ERROR', async (_name, body) => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(jsonResponse(200, body));
+    await expect(api.listTasks('all')).rejects.toMatchObject({
+      status: 200,
+      code: 'UNKNOWN_ERROR',
+    });
+  });
+
+  it.each([
+    [500, 'INTERNAL_ERROR'],
+    [400, 'VALIDATION_ERROR'],
+  ])('maps a %i to ApiError with the server code', async (status, code) => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(jsonResponse(status, { error: { code, message: 'm' } }));
+    const error = await api.listTasks('active').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(api.ApiError);
+    expect(error).toMatchObject({ status, code });
+    expect(api.getCurrentUser()).toEqual(ANN);
+  });
+
+  it('maps a network failure to status 0', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(api.listTasks('all')).rejects.toMatchObject({
+      status: 0,
+      code: 'NETWORK_ERROR',
+    });
+  });
+
+  it('clears the session and notifies on 401', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    const listener = vi.fn();
+    api.onUnauthorized(listener);
+    fetchMock.mockResolvedValue(
+      jsonResponse(401, { error: { code: 'UNAUTHORIZED', message: 'Invalid or expired token' } }),
+    );
+    await expect(api.listTasks('all')).rejects.toMatchObject({ status: 401 });
+    expect(api.getCurrentUser()).toBeNull();
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(listener).toHaveBeenCalledOnce();
+  });
+});

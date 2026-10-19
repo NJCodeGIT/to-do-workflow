@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { useAuth } from './auth/useAuth';
+import TasksView from './tasks/TasksView';
 
-// Protected placeholder until the task stories (docs/UI_SPEC.md "Home placeholder").
+// Protected home: the user's task list with the status filter (docs/UI_SPEC.md "Home: task list").
 export default function HomePage() {
   const { user, logout } = useAuth();
 
@@ -21,7 +22,8 @@ export default function HomePage() {
       </header>
       <main>
         <h1>Your tasks</h1>
-        <p>Task list coming soon.</p>
+        {/* Keyed by user so a different session always gets a fresh mount and request. */}
+        <TasksView key={user?.id} />
       </main>
     </>
   );

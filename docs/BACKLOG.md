@@ -174,6 +174,39 @@ Decision log: designer records the answers to 1-5 as new rows in `docs/DECISIONS
 Story: As a logged-in user, I want to see my tasks and filter them by All / Active / Completed, so that I can focus on what matters.
 Covers: `client/src/tasks/`, task calls in `api.ts`, replaces the placeholder `HomePage`; empty, loading and error states.
 Depends on: S-005, S-004.
+Status: built and reviewed (Gates A and B approved; quality-tester verdict pass); awaiting merge (details in `work/S-007.md`). Gate A answers: all six proposed defaults accepted (decisions 45-49).
+Acceptance (proposed defaults in brackets below were accepted at Gate A):
+- Home (`/`, protected) replaces "Task list coming soon." with the task list; header (signed-in email, Log out) and `<h1>Your tasks</h1>` stay. Document title unchanged.
+- Data: `api.ts` gains a `Task` type (the seven API keys) and `listTasks(status)` calling `GET /api/v1/tasks?status=...` with `auth: true`; no component calls `fetch` or reads storage.
+- Initial load: filter is All; while the request is in flight a loading indicator (`role="status"`, text such as "Loading tasks...") is shown and no list or empty message is shown.
+- Success: tasks render in the order the API returns (newest first, no client re-sorting). Each item shows the title, the description when not `null`, and the status as text ("Active" / "Completed"), so status does not rely on color alone. Title and description render as plain text (no HTML injection, decision 26). Items are in a `<ul>`.
+- Filter: a control with three choices, All / Active / Completed, reachable and operable by keyboard, the current choice exposed to assistive tech (`aria-pressed` buttons or equivalent; design decides). Choosing one requests that status from the API [proposed: server-side filtering, one request per change] and shows only matching tasks. Choosing the already selected choice does nothing.
+- Filter state [proposed: kept in the URL as `?status=active|completed`, All = no param] so reload and Back keep the view; an unknown or repeated `status` in the URL falls back to All and is never sent to the API.
+- Switching filters: the previous list is replaced by the loading state, not shown under the new filter's label; a slow earlier response must never overwrite a later choice (stale responses are ignored).
+- Empty states (zero tasks, not an error), one message per filter: All "You have no tasks yet."; Active "No active tasks."; Completed "No completed tasks." The filter control stays usable.
+- Error state: a network failure, 5xx, 400 or malformed response shows an `role="alert"` message (fixed client text, not raw server text) and a "Try again" button that repeats the request for the current filter; the filter control stays usable and no stale list is shown.
+- 401 on the list call uses the existing global handling (session cleared, redirect to `/login`, session-expired notice, return to `/`); it does not show the list error state.
+- Another user's tasks are never shown (list comes only from the authenticated call); after logout and login as a different user the list shows the new user's tasks, not the old ones.
+- Accessibility: one `<h1>`; list is a real list; loading is `role="status"`, error is `role="alert"`, results change is announced politely (e.g. the empty or count text in a live region; design decides); no autofocus on load; visible focus kept.
+- Client component tests (`api.ts` mocked) cover each bullet above: loading, list with and without description, each filter's request argument and empty message, URL param fallback, error plus retry, stale response ignored, 401 path, logout/login isolation. `api.test.ts` covers `listTasks` (URL, Bearer header, parsed result, error mapping). `npm run lint`, `npm test`, `npm run typecheck`, `npm run build` pass.
+- `docs/UI_SPEC.md` (home wireframe, states, filter, a11y), `CLAUDE.md` (status, `client/src/tasks/` folder note) updated; `docs/API_SPEC.md` unchanged (no server change).
+Out of scope: add form (S-008), edit (S-009), complete/reopen/delete controls (S-010); any server, API contract, or migration change; client-side sorting, search, pagination, task counts per filter, date display, optimistic updates, polling or auto-refresh, caching across filters; E2E (S-011); styling beyond usable and accessible; new dependencies.
+Tasks:
+1. [solution-designer] Resolve the open questions; design the `Task`/`listTasks` types in `api.ts`, the `client/src/tasks/` components and data-loading hook (loading/error/empty/stale-response handling), the filter control and its a11y, wireframes and states in `docs/UI_SPEC.md`. Leave seams for S-008..S-010 (create/edit/complete/delete will need to refetch or update the list).
+2. [app-developer] `api.ts`: `Task` type and `listTasks`; error mapping to a fixed message.
+3. [app-developer] `client/src/tasks/`: list, item, filter control, loading/empty/error states; replace the placeholder in `HomePage`.
+4. [test-engineer] Component tests with `api.ts` mocked (all acceptance bullets) and `listTasks` tests in `api.test.ts`; update existing `HomePage`/`App` tests that expect the placeholder text.
+5. [quality-tester] Review against criteria, layering (no `fetch` outside `api.ts`), a11y basics, stale-response handling.
+6. [document-writer] Update `CLAUDE.md` status and folder notes, `docs/UI_SPEC.md`; verify commands.
+7. [delivery-operator] Release checklist; no CI change expected.
+Dependencies needing Gate A approval: none (existing `react`, `react-router-dom`, `@testing-library/*`, `user-event`). No `fetch` wrapper, state, or data-fetching library (e.g. React Query) is proposed.
+Open questions (proposed default in brackets; none block starting design if the defaults are accepted at Gate A):
+1. Where does the filter live? [proposed: URL `?status=`, invalid falls back to All] or component state (lost on reload)?
+2. Filter on the server (one request per choice) [proposed, API already supports it, strict values] or fetch All once and filter in the client (fewer requests, but S-008..S-010 must keep two views in sync)?
+3. Filter control shape: toggle buttons with `aria-pressed` [proposed] or radio group or tabs?
+4. Show created/completed dates on items? [proposed: no, out of scope]
+5. Error text: one fixed message for all failures ("Could not load your tasks. Try again.") [proposed] or separate network vs server messages as in the auth forms?
+6. Long descriptions (up to 2000 chars): show in full, wrapping [proposed] or truncate?
 
 ## S-008 Client: add a task  [Must]
 Story: As a logged-in user, I want a form to add a task with a title and optional description, so that I can capture work quickly.

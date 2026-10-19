@@ -218,6 +218,59 @@ export function register(email: string, password: string): Promise<User> {
   return authenticate('/auth/register', email, password);
 }
 
+// --- Tasks (S-007, decisions #46, #47) -------------------------------------------------------
+
+export type TaskStatus = 'active' | 'completed';
+export type TaskFilter = TaskStatus | 'all';
+export type Task = {
+  id: number;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function isTask(value: unknown): value is Task {
+  if (typeof value !== 'object' || value === null) return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.id === 'number' &&
+    typeof v.title === 'string' &&
+    (typeof v.description === 'string' || v.description === null) &&
+    (v.status === 'active' || v.status === 'completed') &&
+    (typeof v.completedAt === 'string' || v.completedAt === null) &&
+    typeof v.createdAt === 'string' &&
+    typeof v.updatedAt === 'string'
+  );
+}
+
+/** Copies exactly the seven API keys, so unexpected fields never reach the UI. */
+function toTask(t: Task): Task {
+  return {
+    id: t.id,
+    title: t.title,
+    description: t.description,
+    status: t.status,
+    completedAt: t.completedAt,
+    createdAt: t.createdAt,
+    updatedAt: t.updatedAt,
+  };
+}
+
+/**
+ * GET /tasks?status=<filter> (always explicit). Authenticated, so a 401 goes through the global
+ * handling (#30). A malformed body throws `ApiError(status, 'UNKNOWN_ERROR')`.
+ */
+export async function listTasks(filter: TaskFilter): Promise<Task[]> {
+  const { status, data } = await send(`/tasks?status=${filter}`, {});
+  const tasks =
+    typeof data === 'object' && data !== null ? (data as Record<string, unknown>).tasks : undefined;
+  if (!Array.isArray(tasks) || !tasks.every(isTask)) throw new ApiError(status, 'UNKNOWN_ERROR');
+  return tasks.map(toTask);
+}
+
 export function getHealth(): Promise<{ status: string }> {
   return apiRequest<{ status: string }>('/health', { auth: false });
 }
