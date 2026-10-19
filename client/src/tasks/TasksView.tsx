@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { TaskFilter } from '../api';
+import AddTaskForm from './AddTaskForm';
 import TaskFilterControl from './TaskFilterControl';
 import TaskList from './TaskList';
 import {
@@ -12,8 +13,8 @@ import {
 } from './task-filter';
 import { useTasks } from './useTasks';
 
-// Task list with the status filter (S-007, docs/UI_SPEC.md "Task list behavior").
-// The filter lives only in the URL (#45).
+// Add form (S-008) and task list with the status filter (S-007, docs/UI_SPEC.md "Task list
+// behavior"). The filter lives only in the URL (#45).
 export default function TasksView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const filter = filterFromSearchParams(searchParams);
@@ -39,6 +40,7 @@ export default function TasksView() {
 
   return (
     <>
+      <AddTaskForm filter={filter} onAdded={reload} />
       <TaskFilterControl value={filter} onChange={changeFilter} pressedRef={pressedRef} />
       <div role="status">{statusText}</div>
       {state.kind === 'error' && (

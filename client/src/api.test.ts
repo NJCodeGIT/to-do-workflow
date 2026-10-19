@@ -363,3 +363,111 @@ describe('listTasks', () => {
     expect(listener).toHaveBeenCalledOnce();
   });
 });
+
+describe('createTask', () => {
+  const CREATED = {
+    id: 9,
+    title: 'Buy milk',
+    description: '2 litres',
+    status: 'active',
+    completedAt: null,
+    createdAt: '2026-01-01T10:00:00.000Z',
+    updatedAt: '2026-01-01T10:00:00.000Z',
+  };
+
+  it('sends POST /tasks with the bearer token and returns exactly the seven keys', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(jsonResponse(201, { ...CREATED, userId: 1 }));
+    const created = await api.createTask({ title: 'Buy milk', description: '2 litres' });
+    expect(created).toEqual(CREATED);
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('/api/v1/tasks');
+    expect(init?.method).toBe('POST');
+    expect(JSON.parse(init?.body as string)).toEqual({
+      title: 'Buy milk',
+      description: '2 litres',
+    });
+    expect(sentHeaders()).toEqual({
+      Authorization: 'Bearer tok-1',
+      'Content-Type': 'application/json',
+    });
+  });
+
+  it('omits the description key when it is undefined', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(jsonResponse(201, { ...CREATED, description: null }));
+    await api.createTask({ title: 'Buy milk' });
+    expect(fetchMock.mock.calls[0]![1]?.body).toBe('{"title":"Buy milk"}');
+  });
+
+  it('rejects a malformed 201 body with UNKNOWN_ERROR', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(jsonResponse(201, { ...CREATED, id: '9' }));
+    await expect(api.createTask({ title: 'x' })).rejects.toMatchObject({
+      status: 201,
+      code: 'UNKNOWN_ERROR',
+    });
+  });
+
+  it('maps a 400 to ApiError with the server code and message', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(
+      jsonResponse(400, { error: { code: 'VALIDATION_ERROR', message: 'title is required' } }),
+    );
+    await expect(api.createTask({ title: '' })).rejects.toMatchObject({
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      message: 'title is required',
+    });
+  });
+
+  it('maps a network failure to status 0 NETWORK_ERROR', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(api.createTask({ title: 'x' })).rejects.toMatchObject({
+      status: 0,
+      code: 'NETWORK_ERROR',
+    });
+  });
+
+  it('maps a 5xx to ApiError with its status', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(
+      jsonResponse(500, { error: { code: 'INTERNAL_ERROR', message: 'Internal error' } }),
+    );
+    await expect(api.createTask({ title: 'x' })).rejects.toMatchObject({
+      status: 500,
+      code: 'INTERNAL_ERROR',
+    });
+  });
+
+  it('clears the session and notifies on 401', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    const listener = vi.fn();
+    api.onUnauthorized(listener);
+    fetchMock.mockResolvedValue(
+      jsonResponse(401, { error: { code: 'UNAUTHORIZED', message: 'Invalid or expired token' } }),
+    );
+    await expect(api.createTask({ title: 'x' })).rejects.toMatchObject({ status: 401 });
+    expect(api.getCurrentUser()).toBeNull();
+    expect(localStorage.getItem(KEY)).toBeNull();
+    expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a 201 with an empty or non-object body with UNKNOWN_ERROR', async () => {
+    storeSession('tok-1');
+    const api = await loadApi();
+    fetchMock.mockResolvedValue(jsonResponse(201, null));
+    await expect(api.createTask({ title: 'x' })).rejects.toMatchObject({
+      status: 201,
+      code: 'UNKNOWN_ERROR',
+    });
+  });
+});

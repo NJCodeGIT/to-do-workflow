@@ -13,7 +13,7 @@ Router: `react-router-dom`, declarative mode (`BrowserRouter` in `main.tsx`, `<R
 |---|---|---|---|
 | `/login` | public only | `LoginPage` | `Log in - To-Do App` |
 | `/register` | public only | `RegisterPage` | `Create account - To-Do App` |
-| `/` (optional `?status=active\|completed`, S-007) | protected | `HomePage` (task list and status filter) | `Your tasks - To-Do App` |
+| `/` (optional `?status=active\|completed`, S-007) | protected | `HomePage` (add-task form, status filter, task list) | `Your tasks - To-Do App` |
 | `*` (anything else) | - | `<Navigate to="/" replace />` (then the guard applies) | - |
 
 - **Protected** (`RequireAuth`): no user -> `<Navigate to="/login" replace state={{ from: location }} />`.
@@ -50,6 +50,12 @@ Router: `react-router-dom`, declarative mode (`BrowserRouter` in `main.tsx`, `<R
    list from the API. Back/Forward step through earlier filter choices; reload keeps the filter.
    Visiting `/?status=active` while logged out redirects to `/login` with `from` including the
    query, so after login the same filter is shown (Routes: `redirectTarget` keeps `search`).
+9. **Add a task** (S-008): on home, type a title (and optionally a description), press Enter in
+   the title or activate `Add task`. Valid -> the task is created, the form is cleared, focus
+   returns to the title (ready for the next task), `Task added.` is announced, and the current
+   filter's list is refetched (the new task appears first under All and Active). Under
+   Completed the filter is kept and the message says the new (active) task is not shown there.
+   The URL never changes. Details: "Add task form (S-008)".
 
 ## Wireframes
 
@@ -106,7 +112,7 @@ Router: `react-router-dom`, declarative mode (`BrowserRouter` in `main.tsx`, `<R
 No confirm-password field, show-password toggle, strength meter, or forgot-password link
 (out of scope for S-004).
 
-### Home: task list (`/`, S-007)
+### Home: task list (`/`, S-007; add form S-008)
 Ready, with tasks (filter All):
 ```
 +--------------------------------------------------+
@@ -115,6 +121,15 @@ Ready, with tasks (filter All):
 +--------------------------------------------------+
 |                                                  |  <main>
 |  Your tasks                                <h1>  |
+|                                                  |
+|  Add a task                                <h2>  |  <- S-008 add form (see below),
+|  Title                                           |     shown in every list state
+|  [                                          ]    |     and under every filter
+|  Description (optional)                          |
+|  [                                          ]    |  <textarea rows=3>
+|  [                                          ]    |
+|  [ Add task ]                                    |
+|                                     role=status  |  <- add confirmation, always in DOM
 |                                                  |
 |  Show: [*All*] [ Active ] [ Completed ]          |  <- role=group, aria-pressed buttons
 |                                                  |
@@ -155,7 +170,71 @@ Error (any failure except 401):
 ```
 The email comes from the stored session `user` (never from the token). It is rendered as
 text (React escaping); nothing is injected as HTML (#26). Header, `<h1>Your tasks</h1>` and the
-document title are unchanged from S-004. Add/edit/complete/delete controls come in S-008..S-010.
+document title are unchanged from S-004. In the loading, empty and error sketches above the
+add form is omitted for brevity; it is always rendered above the filter. Edit and
+complete/delete controls come in S-009/S-010.
+
+### Add task form states (S-008)
+Validation error (submit with an empty title and a 2001-character description):
+```
+|  Add a task                                <h2>  |
+|  Title                                           |
+|  [                                          ]    |  <- aria-invalid, focused
+|  Enter a title.                                  |  <- id add-task-title-error
+|  Description (optional)                          |
+|  [ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx ]    |  <- aria-invalid
+|  Description must be at most 2000 characters.    |  <- id add-task-description-error
+|  [ Add task ]                                    |
+|                                     role=status  |  <- empty (cleared by this submit)
+```
+
+Sending (button disabled, inputs stay editable):
+```
+|  Title                                           |
+|  [ Buy milk                                 ]    |
+|  Description (optional)                          |
+|  [                                          ]    |
+|  [ Adding... ]                        disabled   |
+|                                     role=status  |  <- empty while sending
+```
+
+Success under All or Active (list refetches: `Loading tasks...` briefly, then the new list):
+```
+|  Title                                           |
+|  [                                          ]    |  <- cleared, focused
+|  Description (optional)                          |
+|  [                                          ]    |  <- cleared
+|  [ Add task ]                                    |
+|  Task added.                        role=status  |
+|                                                  |
+|  Show: [*All*] [ Active ] [ Completed ]          |
+|  4 tasks                            role=status  |  <- list region (separate)
+|  - Buy milk                                      |  <- new task first (API order)
+|    Active                                        |
+```
+
+Success under Completed (filter and URL unchanged; list refetched, still without the task):
+```
+|  [ Add task ]                                    |
+|  Task added. It is active, so it is not shown    |
+|  under Completed.                   role=status  |
+|                                                  |
+|  Show: [ All ] [ Active ] [*Completed*]          |
+|  No completed tasks.                role=status  |
+```
+
+Server or network error (values kept, focus to title):
+```
+|  Add a task                                <h2>  |
+|  [!] Error: Could not reach the server. Check    |
+|      your connection and try again. role=alert   |  <- form-level, above the fields
+|  Title                                           |
+|  [ Buy milk                                 ]    |  <- value kept, focused
+|  Description (optional)                          |
+|  [ 2 litres                                 ]    |  <- value kept
+|  [ Add task ]                                    |  <- re-enabled
+|                                     role=status  |  <- empty
+```
 
 ## Task list behavior (S-007)
 Decisions #45-#49.
@@ -196,6 +275,96 @@ Decisions #45-#49.
   S-009/S-010 control labels). Order is exactly the API order.
 - Logout unmounts the page; a different user logging in gets a fresh mount and a fresh request
   (no list is kept in memory between sessions).
+
+## Add task form (S-008)
+Decisions #50-#53. Component `AddTaskForm` (`client/src/tasks/AddTaskForm.tsx`), rendered by
+`TasksView` as its first child (between `<h1>Your tasks</h1>` and the filter), in every list
+state (loading, ready, empty, error) and under every filter. Pure rules and texts live in
+`client/src/tasks/task-form.ts`. The data call is `createTask` in `client/src/api.ts`.
+
+### Structure
+- `<section aria-labelledby="add-task-heading">` with `<h2 id="add-task-heading">Add a task</h2>`,
+  then the form-level alert (only when set), then
+  `<form noValidate aria-labelledby="add-task-heading">` containing:
+  - `<label htmlFor="add-task-title">Title</label>` + `<input id="add-task-title" type="text"
+    name="title" autoComplete="off">`, then its error `<p id="add-task-title-error">` when set.
+  - `<label htmlFor="add-task-description">Description (optional)</label>` + `<textarea
+    id="add-task-description" name="description" rows={3}>`, then its error
+    `<p id="add-task-description-error">` when set.
+  - `<button type="submit">Add task</button>` (`Adding...` and `disabled` while sending).
+- After the form, still inside the section: `<div role="status">` holding the confirmation,
+  always rendered (empty when there is nothing to say). It is separate from the list's
+  results region so the two never overwrite each other.
+- No `required`, no `maxLength`, no `autoFocus` attributes. Over-long input is reported on
+  submit, never silently cut (#51).
+
+### Submit flow
+1. `preventDefault`. If a request is in flight (ref flag), return: nothing is sent, nothing
+   changes (the flag, not only `disabled`, stops a second Enter).
+2. Clear the confirmation (so a repeated `Task added.` is announced again) and validate the
+   current values (table below).
+3. Invalid -> clear the form-level error, show the field errors, focus the first invalid field
+   (title before description; errors rendered before focusing, as in the auth forms), send
+   nothing.
+4. Valid -> build the payload from the values at this moment: `title` = trimmed title;
+   `description` = trimmed description, **key omitted** when the trimmed value is empty.
+   Nothing else is sent. Set the in-flight flag, clear field and form-level errors, disable the
+   button with label `Adding...`. Inputs stay editable; later typing does not change the
+   payload already sent.
+5. Success (`createTask` resolves) -> clear the flag, re-enable the button, empty both fields
+   (also anything typed while sending), clear errors, set the confirmation (below), call
+   `onAdded()` (TasksView passes `reload`), and focus the title input.
+6. Failure -> clear the flag, re-enable the button, keep the current values, set the form-level
+   error (table below) and focus the title input. Exception: a 401 sets no form error and moves
+   no focus; the global handling (#30, Flows 6) clears the session and redirects to `/login`
+   with the session-expired notice.
+
+- Editing a field removes that field's error. The form-level error stays until the next submit.
+- The confirmation stays until the next submit (valid or invalid); no timer.
+
+### Client validation (mirrors `docs/API_SPEC.md` "Task validation rules", #32; UX only)
+| Field | Rule (after JS `trim()`; length = JS string length) | Message |
+|---|---|---|
+| title | empty (incl. whitespace-only) | `Enter a title.` |
+| title | more than 200 characters | `Title must be at most 200 characters.` |
+| description | more than 2000 characters | `Description must be at most 2000 characters.` |
+
+Exactly 200 / 2000 characters (after trim) are accepted. Both fields are checked on every
+submit, so both errors can show at once; focus goes to the first invalid one.
+
+### Confirmation text (set on success; uses the filter current when the response arrives)
+| Filter | Text |
+|---|---|
+| All, Active | `Task added.` |
+| Completed | `Task added. It is active, so it is not shown under Completed.` |
+
+The text is fixed when it is set: a later filter change does not rewrite it (no extra
+announcement on filter clicks). The filter and URL are never changed by adding.
+
+### List refresh after success
+- `onAdded()` = `useTasks().reload()` (#47): the current filter is refetched, so the list
+  region shows `Loading tasks...` and hides the list until the response arrives, then shows the
+  API order (new active task first under All and Active). No client-side insertion or sorting.
+- A list response from before the add is dropped by the hook's `ignore` flag; two adds in a
+  row end with the list from the last reload.
+- A failed refetch shows the S-007 list error state (`Error: Could not load your tasks.` +
+  Try again). The add is not reported as failed: the form is already cleared and
+  `Task added.` stays.
+
+### Server and network errors -> form-level message
+| Result of `createTask` | Message (rendered `Error: <message>` in `role="alert"`) |
+|---|---|
+| 400 `VALIDATION_ERROR` with a non-empty message | the server's message, verbatim (e.g. `title is required`); fixed server strings that never echo input (#31) |
+| network failure (`ApiError` status 0) | `Could not reach the server. Check your connection and try again.` |
+| 5xx, any other status, malformed or empty 201 body, non-`ApiError` | `Something went wrong. Please try again.` |
+| 401 | no form message (global handling) |
+
+- The two fixed texts are the same constants as the auth forms (`NETWORK_MESSAGE`,
+  `GENERIC_MESSAGE` in `client/src/auth/error-messages.ts`).
+- Lost response: if the server created the task but the response never arrived (network error
+  after the write), the form shows the network message and keeps the values; submitting again
+  creates a second, identical task. Accepted (#53): no idempotency key without an API change.
+  The user sees both after the next list load and can delete one (S-010).
 
 ## Form behavior (login and register)
 - `<form noValidate>`: the browser's built-in validation bubbles are off so our messages are
@@ -255,7 +424,8 @@ Checks run in this order per field; the first failing one is shown.
 
 ## Accessibility
 - **Labels**: every input has a visible `<label htmlFor>`; ids are unique per page
-  (`login-email`, `login-password`, `register-email`, `register-password`).
+  (`login-email`, `login-password`, `register-email`, `register-password`; home:
+  `add-task-title`, `add-task-description`).
   `autoComplete`: `email`; login password `current-password`; register password `new-password`.
 - **Field errors**: an element with id `<input-id>-error`, rendered only when set; the input gets
   `aria-invalid="true"` and `aria-describedby` listing the error id (and, on register password,
@@ -266,13 +436,14 @@ Checks run in this order per field; the first failing one is shown.
   "Error:" prefix is optional).
 - **Session-expired notice**: `role="status"` (polite), on the login page only.
 - **Submit in flight**: the button has `disabled` and a changed label (`Logging in...` /
-  `Creating account...`). Focus is restored to the email field when the request fails.
+  `Creating account...` / `Adding...`). Focus is restored to the email field (auth forms) or the
+  title field (add task) when the request fails.
 - **Keyboard**: native `<form>`, `<input>`, `<button type="submit">`, `<a>` (router `Link`) and a
   `<button type="button">` for logout, the task filter and Try again; no click handlers on non-interactive elements.
   Tab order follows the visual order (notice/alert, email, password, submit, switch link).
   Enter in any field submits. No `tabIndex` values above 0. Visible focus outline is kept
   (never `outline: none` without a replacement).
-- **Structure**: one `<h1>` per page; `<header>` holds the app name (and, on home, the user email
+- **Structure**: one `<h1>` per page (home also has the `<h2>Add a task</h2>`, S-008); `<header>` holds the app name (and, on home, the user email
   and logout button); page content is in `<main>`. `document.title` is set per route (table above).
 - **Task filter** (S-007): `<div role="group" aria-labelledby="task-filter-label">` with a visible
   `<span id="task-filter-label">Show:</span>` and three native `<button type="button">` (`All`,
@@ -284,6 +455,17 @@ Checks run in this order per field; the first failing one is shown.
   The error is a separate `role="alert"` container rendered only in the error state; the
   `Try again` button sits after it, not inside it. Status of each task is text, never color or
   an icon alone. No autofocus on load; focus is moved only by Try again (above).
+- **Add task form** (S-008): ids `add-task-title`, `add-task-description` with visible labels
+  (`Title`, `Description (optional)`); field errors as in the auth forms (`<id>-error`,
+  `aria-invalid="true"`, `aria-describedby`, not `role="alert"`, announced by focusing the first
+  invalid field). Form-level error: `role="alert"` inside the section, above the fields,
+  rendered only when set. Confirmation: its own always-rendered `role="status"` (polite), after
+  the form. The `<h2>Add a task</h2>` names both the section and the form
+  (`aria-labelledby`). Keyboard: Tab order title, description, `Add task`, then the filter;
+  Enter in the title submits; Enter in the description inserts a newline (no Ctrl+Enter);
+  `Add task` by Enter/Space. Focus moves only after a submit: to the first invalid field, or to
+  the title after success or a non-401 error. No autofocus on page load. Submitted text is
+  rendered as plain text only (#26), so a title like `<b>x</b>` shows literally.
 - **Contrast**: text and error text at least 4.5:1 against the background; focus indicator at
   least 3:1.
 - No autofocus on page load.

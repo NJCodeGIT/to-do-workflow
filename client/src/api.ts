@@ -271,6 +271,20 @@ export async function listTasks(filter: TaskFilter): Promise<Task[]> {
   return tasks.map(toTask);
 }
 
+/**
+ * POST /tasks (S-008, decision #51). Sends `{ title }` or `{ title, description }`: the
+ * `description` key is absent when `input.description` is undefined. Authenticated, so a 401
+ * goes through the global handling (#30). A malformed body throws
+ * `ApiError(status, 'UNKNOWN_ERROR')`.
+ */
+export async function createTask(input: { title: string; description?: string }): Promise<Task> {
+  const body: { title: string; description?: string } = { title: input.title };
+  if (input.description !== undefined) body.description = input.description;
+  const { status, data } = await send('/tasks', { method: 'POST', body });
+  if (!isTask(data)) throw new ApiError(status, 'UNKNOWN_ERROR');
+  return toTask(data);
+}
+
 export function getHealth(): Promise<{ status: string }> {
   return apiRequest<{ status: string }>('/health', { auth: false });
 }

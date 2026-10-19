@@ -95,7 +95,7 @@ Dependencies needing Gate A approval: client runtime `react-router-dom` (beyond 
 Open questions: token storage location (see S-003 plan open question); whether home is a placeholder until the tasks stories land; depends on S-003 being merged (or at least its API contract approved).
 
 ## Task roadmap (S-005 to S-012)
-Added by the product-planner as a pick-list. S-005 and S-006 are planned in full below; S-007 to S-012 are still titles only. Acceptance criteria, out-of-scope notes and the task breakdown for those are written (and approved at Gate A) when a story is picked and run through `/feature-orchestrator`. IDs are final; order is the suggested build order. The `tasks` table already exists in `001_init.sql`, so no story needs a migration unless design finds a gap (S-005 needed none).
+Added by the product-planner as a pick-list. S-005 to S-008 are planned in full below; S-009 to S-012 are still titles only. Acceptance criteria, out-of-scope notes and the task breakdown for those are written (and approved at Gate A) when a story is picked and run through `/feature-orchestrator`. IDs are final; order is the suggested build order. The `tasks` table already exists in `001_init.sql`, so no story needs a migration unless design finds a gap (S-005 needed none).
 
 ## S-005 Task API: create and list with status filter  [Must]
 Story: As a logged-in user, I want to create tasks and list my own tasks filtered by status, so that I can capture work and see what is active or done.
@@ -211,7 +211,44 @@ Open questions (proposed default in brackets; none block starting design if the 
 ## S-008 Client: add a task  [Must]
 Story: As a logged-in user, I want a form to add a task with a title and optional description, so that I can capture work quickly.
 Covers: create form with validation messages, list updates after submit, no double submit.
-Depends on: S-007.
+Depends on: S-007 (merged, PR #16), S-005 (merged; `POST /tasks` exists).
+Status: built and reviewed (Gates A and B approved; quality-tester verdict pass); awaiting merge (details in `work/S-008.md`). Gate A answers: all eight proposed defaults accepted (decisions 50-53).
+Acceptance (the defaults accepted at Gate A are written as decided behavior):
+- Placement: on Home (`/`), inside the task view, an "Add a task" form sits between `<h1>Your tasks</h1>` and the filter control. Header, `<h1>`, document title and the S-007 list behavior are unchanged. The form is visible in every state of the list (loading, ready, empty, error) and for every filter.
+- Fields: a text input "Title" (required) and a multi-line "Description (optional)" field, each with a visible `<label htmlFor>`; a submit button "Add task". `<form noValidate>`, so our messages are the only ones. No autofocus on load.
+- Data: `api.ts` gains `createTask({ title, description? })` calling `POST /api/v1/tasks` with `auth: true` and returning the created `Task` (checked at runtime like `listTasks`; a malformed or empty 201 body throws `ApiError(status, 'UNKNOWN_ERROR')`). No component calls `fetch` or reads storage.
+- Client validation on submit only, mirroring decision 32 / `docs/API_SPEC.md`: title trimmed, empty or whitespace-only is blocked (`Enter a title.`); title longer than 200 after trim is blocked (`Title must be at most 200 characters.`); description trimmed longer than 2000 is blocked (`Description must be at most 2000 characters.`). A 200-character title and a 2000-character description are accepted. Lengths are JS string length. Invalid submit sends nothing, shows field errors (`aria-invalid`, `aria-describedby`), focuses the first invalid field; editing a field clears its error.
+- Payload: the trimmed title is sent; the description is trimmed and, when empty or whitespace-only, omitted from the body (`null` would be equivalent). Nothing else is sent (no `status`, `userId`).
+- No double submit: while the request is in flight the button is disabled with label `Adding...` and a second submit (Enter or click) sends no second request (the handler checks an in-flight flag, not only `disabled`). Inputs stay editable; typing during flight does not alter the sent payload.
+- Success: the form is cleared (title and description empty, no errors), focus moves to the title input so tasks can be added back to back, and the visible list reflects the new task without a page reload: the current filter is refetched with the existing `reload()` seam (no client-side insertion, no client sorting; the API order is shown, so a new active task appears first under All and Active). A polite confirmation (`role="status"`, e.g. `Task added.`) is announced.
+- Filter interaction (the filter is not changed): a new task is `active`. Under All or Active it appears at the top of the refetched list. Under Completed it does not match, so the list is refetched and stays as is, and the confirmation says so (e.g. `Task added. It is active, so it is not shown under Completed.`). The URL is not changed by adding.
+- Stale/ordering: a list response from before the add never overwrites the refetch (existing `ignore` flag); two adds in a row end with the list from the last refetch.
+- Server errors (form-level `role="alert"`, text `Error: <message>`, values kept, focus to the title input, button re-enabled): `400 VALIDATION_ERROR` shows the server's fixed message verbatim (decision 31 pattern); network failure shows `Could not reach the server. Check your connection and try again.`; 5xx, other status, or malformed response shows `Something went wrong. Please try again.`. The form-level error is cleared on the next submit.
+- 401 on create uses the existing global handling (session cleared, redirect to `/login`, session-expired notice); no form error is shown. A deleted-user token also gets 401 (decision 34), same path.
+- A failed refetch after a successful add shows the existing S-007 list error state with Try again; the add itself is not reported as failed and the form is already cleared.
+- Text safety: submitted title and description are rendered only as plain text (decision 26); a title like `<b>x</b>` shows literally.
+- Accessibility: one `<h1>` (unchanged); inputs labelled; field errors via `aria-invalid` + `aria-describedby`; form-level error `role="alert"`; confirmation in a persistent `role="status"` region separate from the list-results region; the whole form works by keyboard only (Tab order: title, description, Add task; Enter in the title submits; Enter in the description inserts a newline; Add task by Enter/Space); visible focus kept; no `tabIndex` above 0; no `maxLength` attribute that silently truncates or blocks paste.
+- Client tests (`api.ts` mocked): valid submit (payload, trimmed title, description omitted when blank), each validation message and the 200/2000 boundaries, nothing sent when invalid, double submit sends one request, button disabled/label while in flight, success clears the form and refetches and shows the new task, add under Completed (not shown, message), 400 server message, network and 5xx messages, values kept after error, 401 path, refetch-failure state, plain-text rendering, keyboard submit, focus handling. `api.test.ts` covers `createTask` (URL, method, Bearer header, JSON body, parsed result, malformed result, error mapping). Existing TasksView/App tests still pass. `npm run lint`, `npm test`, `npm run typecheck`, `npm run build` pass.
+- `docs/UI_SPEC.md` (add form wireframe, states, validation table, errors, filter interaction, a11y) and `CLAUDE.md` (status, `client/src/tasks/` folder note) updated; `docs/API_SPEC.md` unchanged (no server change).
+Out of scope: edit (S-009), complete/reopen/delete controls (S-010); any server, API contract, or migration change; E2E (S-011); optimistic insertion or client-side list merge; a silent (no loading flash) refetch beyond what the design needs; character counters; drafts persisted across reload; undo; Ctrl+Enter shortcut; modal or separate page for adding; auto-switching the filter; retry of a create whose response was lost (a user retry may create a duplicate, accepted, no idempotency key); client dedupe of identical titles; styling beyond usable and accessible; new dependencies.
+Tasks:
+1. [solution-designer] Resolve the open questions; design `createTask` in `api.ts`, the add-form component in `client/src/tasks/` (state, in-flight guard, validation module, focus handling), how `TasksView` wires `reload()` and the confirmation message, the loading-flash behavior on refetch, and the confirmation text per filter; add the wireframe, states and validation table to `docs/UI_SPEC.md` and decision rows to `docs/DECISIONS.md`.
+2. [app-developer] `api.ts`: `createTask` with runtime result check and error mapping.
+3. [app-developer] `client/src/tasks/`: add-form component with validation, in-flight guard, error and confirmation messages; mount it in `TasksView` and call `reload()` after success.
+4. [test-engineer] Component tests with `api.ts` mocked (all bullets above) and `createTask` tests in `api.test.ts`.
+5. [quality-tester] Review against criteria, layering (no `fetch` outside `api.ts`), a11y basics, double-submit and stale-response handling, plain-text rendering.
+6. [document-writer] Update `CLAUDE.md` status and folder notes, `docs/UI_SPEC.md`; verify commands.
+7. [delivery-operator] Release checklist; no CI change expected.
+Dependencies needing Gate A approval: none (existing `react`, `react-router-dom`, `@testing-library/*`, `user-event`). No form library, validation library (no `zod` on the client, decision 31), or data-fetching library is used.
+Open questions (all answered at Gate A; the defaults were accepted; decisions 50-53):
+1. Adding while Completed is selected: answered, keep the filter and explain in the confirmation.
+2. Refetch after success: answered, `reload()` as is (shows `Loading tasks...` briefly, no hook change).
+3. Empty description in the request: answered, omit the key.
+4. Description field: answered, multi-line `<textarea>`.
+5. Over-limit input: answered, validation message on submit, no `maxLength`.
+6. Success announcement: answered, `Task added.` status message that stays until the next submit.
+7. Form position: answered, above the filter.
+8. Lost response after a successful create: answered, accept the duplicate risk (no idempotency key).
 
 ## S-009 Client: edit a task  [Must]
 Story: As a logged-in user, I want to edit a task's title and description, so that I can correct or refine it.
