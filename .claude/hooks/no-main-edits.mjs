@@ -13,7 +13,9 @@ try {
     encoding: "utf8",
   }).trim();
 } catch {
-  process.exit(0); // not a git repo or git missing: do not block
+  // Cannot tell the branch: fail closed so a broken git never lets app-developer edit main.
+  console.error("app-developer edits are blocked: could not read the current git branch.");
+  process.exit(2);
 }
 
 if (branch === "main" || branch === "master") {

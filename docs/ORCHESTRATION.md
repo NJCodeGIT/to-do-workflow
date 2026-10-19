@@ -77,8 +77,19 @@ The orchestrator verifies the section exists and is non-empty before the next st
     build, and read-only git/file commands; redirections, `sed -i`, `tee`, `rm`, `git checkout`
     etc. are blocked.
   - `no-main-edits.mjs` (Edit|Write): app-developer is blocked while on `main`/`master`.
-  Both pass through for every other agent and the main session, and fail open if git is missing.
-  If a hook misfires, check that the runtime still sends `agent_type` for subagent calls.
+  - `no-git-writes.mjs` (Bash): any subagent is blocked from `git commit/push/merge/rebase/tag/
+    reset --hard/stash/...` and `gh pr merge/create`. This makes the "subagents never commit"
+    rule tool-enforced instead of prompt-only. The main session is covered by the ask/deny rules.
+  - The hooks pass through for agents they do not target. `no-main-edits.mjs` fails closed: if it
+    cannot read the branch, app-developer is blocked.
+  - Self-test: `node --test .claude/hooks/hooks.test.mjs`. Run it after changing a hook or when a
+    hook seems to misfire (it catches the runtime no longer sending `agent_type`).
+- `SessionStart` hook (`.claude/hooks/session-start.sh`): in cloud sessions only
+  (`CLAUDE_CODE_REMOTE=true`), runs `npm install` and creates `.env` from `.env.example` with a
+  generated `JWT_SECRET` if none exists. Local sessions are untouched.
+- `permissions.allow` in `.claude/settings.json` pre-approves tests, lint, format check, typecheck,
+  build, migrate and read-only git, so agents are not interrupted by prompts for routine checks.
+- `.github/pull_request_template.md` mirrors the handoff sections (story, criteria, tests, review, docs).
 - `quality-tester` has no write tools: it returns its review (ending in
   `Verdict: pass|fix-needed`) and the orchestrator saves it into `## Review`.
 - Model choices are suggestions and can be changed in each file's `model:` field.
