@@ -1,7 +1,9 @@
 # E2E Guide (Playwright)
 
 Status: installed (`@playwright/test`, `@axe-core/playwright`). Existing flows are in
-`e2e/smoke.spec.ts`, helpers in `e2e/helpers.ts`. Verify real commands in `package.json`.
+`e2e/smoke.spec.ts` (12 tests, incl. complete, reopen, delete and axe on a completed item and the
+delete prompt), helpers in `e2e/helpers.ts`. Use `exact: true` for button names (substring match by
+default: `Delete` also matches `Delete Buy milk`) and scope item status text to the list item. Verify real commands in `package.json`.
 Locally: `npx playwright install chromium` once, or set `PW_CHROMIUM_PATH` to an existing Chromium.
 
 ## Layout
@@ -10,7 +12,7 @@ Locally: `npx playwright install chromium` once, or set `PW_CHROMIUM_PATH` to an
   temporary SQLite file, runs the tests, then removes the file.
 
 ## Principles
-- Keep the suite small: 3-5 smoke flows, each independent.
+- Keep the suite small: smoke flows only (12 tests today), each independent.
 - Each test creates its own user (unique fake email) and cleans up via fresh DB per run.
 - Locate elements by role, label, or visible text (`getByRole`, `getByLabel`); no CSS selectors.
 - Use Playwright auto-waiting and `expect(...)` assertions; no fixed sleeps.

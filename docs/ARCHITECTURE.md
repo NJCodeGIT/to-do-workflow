@@ -82,8 +82,14 @@
     open, `EditTaskForm` (draft, validation, in-flight guard). `TasksView` owns which task is open
     (`editing = {id, tasks}`, closed whenever the list array is replaced), the `Task updated.`
     status, the 404 alert, and focus after the refetch. `task-form.ts` has `editTaskPatch`
-    (changed fields only) and the shared `validateTaskFields`/`taskErrorMessage`. Complete/reopen
-    and delete UI are not built yet.
+    (changed fields only) and the shared `validateTaskFields`/`taskErrorMessage`.
+  - Client complete/reopen/delete (S-010; behavior in `docs/UI_SPEC.md`, decisions #58-#62):
+    `TaskPatch` gains `status`; `api.ts` adds `deleteTask(id)` (`DELETE /tasks/:id`, `auth: true`,
+    success only on 204). `TaskItem` shows `Complete`/`Reopen`, `Edit`, `Delete`, or the edit form,
+    or `DeleteTaskConfirm` (inline prompt). `TasksView` runs the status/delete requests and owns
+    `openItem = {id, mode: 'edit' | 'delete', tasks}` (generalizes `editing`), the global `busy`
+    flag + `inFlight` ref, the `shownTasks` ref for stale results, the action `role="status"`, the
+    shared `taskAlert`, and focus after `reload()`. Pure texts and error mapping in `task-actions.ts`.
   - Wiring: `main.tsx` renders `BrowserRouter > AuthProvider > App`; `App.tsx` holds `<Routes>` only.
     Routers use `useTransitions={false}` (tests too): otherwise the location update is a
     transition and renders after the auth state update, so on logout `RequireAuth` runs before

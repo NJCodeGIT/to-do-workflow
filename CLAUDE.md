@@ -3,11 +3,12 @@
 Minimal to-do web app: users register/login, then create, edit, delete, complete,
 and filter their own tasks by status. Monorepo with a REST API and an SPA.
 
-> **Status: task API, task list UI, add-task form and inline edit built (S-005 to S-009).** The monorepo runs: health endpoint, SQLite
+> **Status: task API and the full task UI built (S-005 to S-010).** The monorepo runs: health endpoint, SQLite
 > migration runner, register/login endpoints and JWT middleware, client login/register/logout
 > with route guards, `POST /tasks` + `GET /tasks?status=`, and
 > `GET/PATCH/DELETE /tasks/:id` (edit, complete/reopen, delete). The home page shows the user's task list with an
-> All/Active/Completed filter and an add-task form (title, optional description; S-008). Tasks can be edited inline (title and description; S-009). Complete/reopen and delete UI are not built yet; E2E smoke tests (Playwright) cover the flows that exist.
+> All/Active/Completed filter and an add-task form (title, optional description; S-008). Tasks can be edited inline (title and description; S-009),
+> completed/reopened, and deleted after an inline confirmation (S-010). E2E smoke tests (Playwright, 12 tests) cover all these flows.
 > CD (live): client deploys to Cloudflare Workers via `.github/workflows/ci.yml`
 > (preview on PRs, `production` environment on `main`); a Worker script proxies `/api/*` to the API on
 > Render (free; service `todo-api` live at `https://todo-api-fckp.onrender.com`, `API_ORIGIN` set; `deploy-api` and
@@ -70,9 +71,11 @@ Commands were run and checked in S-001; auth config was added in S-003.
   `useTasks.ts` (loading hook), `TaskFilterControl.tsx`, `TaskList.tsx`, `TaskItem.tsx`,
   `task-filter.ts` (pure helpers and texts), `AddTaskForm.tsx` (add form above the filter),
   `task-form.ts` (pure validation `validateTaskFields`, payloads `newTaskPayload`/`editTaskPatch`,
-  messages incl. `taskErrorMessage`), `EditTaskForm.tsx` (inline edit form inside the item) (+ tests).
-  `api.ts` has `Task`, `listTasks(filter)`, `createTask({ title, description? })` and
-  `updateTask(id, patch)`.
+  messages incl. `taskErrorMessage`), `EditTaskForm.tsx` (inline edit form inside the item),
+  `task-actions.ts` (pure helpers and texts for complete/reopen/delete), `DeleteTaskConfirm.tsx`
+  (inline delete prompt) (+ tests).
+  `api.ts` has `Task`, `listTasks(filter)`, `createTask({ title, description? })`,
+  `updateTask(id, patch)` (`TaskPatch` incl. `status`) and `deleteTask(id)`.
 - `docs/` – detailed docs (see below)
 
 ## Architecture rules
