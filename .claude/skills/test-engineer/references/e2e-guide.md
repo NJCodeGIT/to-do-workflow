@@ -1,11 +1,12 @@
 # E2E Guide (Playwright)
 
-Status: planned. Requires `@playwright/test` and `@axe-core/playwright` as dev
-dependencies, approved and installed first. Verify real commands in `package.json`.
+Status: installed (`@playwright/test`, `@axe-core/playwright`). Existing flows are in
+`e2e/smoke.spec.ts`, helpers in `e2e/helpers.ts`. Verify real commands in `package.json`.
+Locally: `npx playwright install chromium` once, or set `PW_CHROMIUM_PATH` to an existing Chromium.
 
 ## Layout
 - Tests in `e2e/`, config in `playwright.config.ts` at the repo root.
-- Script `npm run test:e2e` (planned) starts the API and client against a
+- Script `npm run test:e2e` starts the API and client against a
   temporary SQLite file, runs the tests, then removes the file.
 
 ## Principles

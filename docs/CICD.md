@@ -13,8 +13,11 @@
   - `actions/setup-node` v7.1.0 (`949feb2413d6458794dcd2491c4babbbce0c15c1`)
   - `cloudflare/wrangler-action` v4.1.3 (`953926a2e2182532811c01a25e53647d93bf07c0`), with `wranglerVersion: '4.151.1'` pinned
   - To upgrade, resolve the new tag to its commit SHA (`git ls-remote https://github.com/actions/<name> refs/tags/<tag>`; for annotated tags use the peeled `^{}` commit) and update SHA and comment together.
-- Planned, not implemented: separate E2E job (install Playwright browsers -> `npm run test:e2e`;
-  upload the Playwright report as an artifact on failure), once Playwright is added.
+- `e2e` job (parallel to `check`, not a dependency of the deploy jobs): installs Chromium
+  (`npx playwright install --with-deps chromium`), runs `npm run test:e2e`, uploads
+  `playwright-report/` and `test-results/` as an artifact on failure.
+  `actions/upload-artifact` v7.0.2 (`cf430e030ddbb5b0abf93d22962f4752f3646cd9`).
+  Make `e2e` a required check for `main` once it has run green.
 
 ## Repository settings (a human must enable; not changed by the workflow)
 - After the first run, make the `check` status check required for `main`. The check is named
@@ -164,4 +167,4 @@ once the API is reachable: `GET /api/v1/health`, login, create a task.
 - User: run the post-deploy checks above against the Worker URL (health, register, log in, create a task).
 - `JWT_SECRET` lives on Render only (generated), never in the repo.
 - For persistent data later: a paid Render plan with a disk (set `DATABASE_PATH` onto it), or another store.
-- E2E job against the preview URL once Playwright exists.
+- Run the E2E suite against the preview URL (today it runs against local dev servers).

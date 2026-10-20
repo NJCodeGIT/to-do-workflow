@@ -19,8 +19,10 @@
 - Client: component tests with Testing Library (+ `user-event`) for forms and the status filter;
   components are tested with `client/src/api.ts` mocked (`vi.mock`) inside a `MemoryRouter`;
   `api.ts` itself is tested with a stubbed `fetch` and a cleared `localStorage`.
-- E2E (planned): Playwright in `e2e/`, 3-5 smoke flows only, role/label locators, no fixed sleeps,
-  fresh temporary SQLite file per run, axe accessibility check on key pages.
+- E2E: Playwright in `e2e/` (config `playwright.config.ts`, run `npm run test:e2e`), smoke flows only,
+  role/label locators, no fixed sleeps, fresh temporary SQLite file per run, axe check (serious and
+  critical) on key pages. Locally run `npx playwright install chromium` once; to reuse an existing
+  Chromium set `PW_CHROMIUM_PATH`. Ports 3001 and 5173 must be free.
 - Most coverage stays at unit/API level; E2E never duplicates it.
 - Every bug fix gets a regression test.
 
