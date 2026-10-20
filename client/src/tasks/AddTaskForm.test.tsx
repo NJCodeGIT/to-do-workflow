@@ -97,10 +97,10 @@ const descriptionInput = () => screen.getByLabelText('Description (optional)');
 const addButton = () => screen.getByRole('button', { name: /^(Add task|Adding\.\.\.)$/ });
 const addSection = () => screen.getByRole('region', { name: 'Add a task' });
 const addStatus = () => within(addSection()).getByRole('status');
-// The list's results region comes before the edit confirmation region (S-009).
+// The list's results region comes before the edit (S-009) and action (S-010) confirmation regions.
 const listStatus = () => {
   const regions = screen.getAllByRole('status').filter((el) => !addSection().contains(el));
-  expect(regions).toHaveLength(2);
+  expect(regions).toHaveLength(3);
   return regions[0]!;
 };
 const formAlert = () => within(addSection()).queryByRole('alert');

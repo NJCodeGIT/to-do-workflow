@@ -62,6 +62,18 @@ Router: `react-router-dom`, declarative mode (`BrowserRouter` in `main.tsx`, `<R
    the current filter's list is refetched (same order, same filter) and focus returns to that
    task's `Edit` button. `Cancel` or Escape closes the form without saving. Saving with no
    real change just closes the form. The URL never changes. Details: "Edit task (S-009)".
+11. **Complete / reopen a task** (S-010): activate `Complete` on an Active task (or `Reopen` on a
+   Completed one). The current filter's list is refetched: under All the task stays in place
+   and its status text and button change; under Active a completed task (under Completed a
+   reopened task) disappears. `Task completed.` / `Task reopened.` is announced (plus a note
+   when the task left the view). Focus returns to the task's (relabelled) button, or to the
+   pressed filter button if the task left the view. The URL never changes. Details:
+   "Complete, reopen and delete (S-010)".
+12. **Delete a task** (S-010): activate `Delete` on a task. The item's buttons are replaced by
+   `Delete "<title>"? This cannot be undone.` with `Delete` and `Cancel`; focus is on Cancel.
+   Cancel or Escape closes the prompt (nothing sent, focus back on the item's `Delete`).
+   `Delete` deletes the task, the list is refetched without it, `Task deleted.` is announced,
+   focus goes to the pressed filter button. Details: "Complete, reopen and delete (S-010)".
 
 ## Wireframes
 
@@ -142,18 +154,20 @@ Ready, with tasks (filter All):
 |  3 tasks                            role=status  |  <- live region, always in the DOM
 |                                                  |
 |                                     role=status  |  <- edit confirmation (S-009), always in DOM
+|                                     role=status  |  <- action confirmation (S-010), always in DOM
 |                                                  |
 |  - Buy milk                                      |  <ul>, newest first (API order)
 |    Active                                        |  <- status as text
-|    [ Edit ]                                      |  <- S-009, name "Edit Buy milk"
+|    [ Complete ] [ Edit ] [ Delete ]              |  <- names "Complete Buy milk", "Edit Buy milk",
+|                                                  |     "Delete Buy milk" (S-009, S-010)
 |  - Write report                                  |
 |    Two pages, include the Q3 numbers and the     |  <- description only when not null,
 |    chart from last week. Wraps, never cut off.   |     full text, wrapped, newlines kept
 |    Completed                                     |
-|    [ Edit ]                                      |  <- completed tasks are editable too
+|    [ Reopen ] [ Edit ] [ Delete ]                |  <- completed tasks are editable too
 |  - Call Bob                                      |
 |    Active                                        |
-|    [ Edit ]                                      |
+|    [ Complete ] [ Edit ] [ Delete ]              |
 +--------------------------------------------------+
 ```
 `[*All*]` = the pressed button (`aria-pressed="true"`, also visually distinct, e.g. bold +
@@ -183,8 +197,9 @@ The email comes from the stored session `user` (never from the token). It is ren
 text (React escaping); nothing is injected as HTML (#26). Header, `<h1>Your tasks</h1>` and the
 document title are unchanged from S-004. In the loading, empty and error sketches above the
 add form is omitted for brevity; it is always rendered above the filter. The edit
-confirmation region (S-009) is always rendered after the list status region (empty in the
-sketches). Complete/delete controls come in S-010.
+confirmation region (S-009) and the action confirmation region (S-010) are always rendered
+after the list status region (empty in the sketches). Complete/reopen/delete: see "Complete,
+reopen and delete states (S-010)".
 
 ### Add task form states (S-008)
 Validation error (submit with an empty title and a 2001-character description):
@@ -258,7 +273,7 @@ items keep their read-only view, their `Edit` buttons are disabled):
 |                                                  |
 |  - Buy milk                                      |
 |    Active                                        |
-|    [ Edit ]                         disabled     |
+|    [ Complete ] [ Edit ] [ Delete ]  disabled    |  <- all item buttons (S-010)
 |  - +------------------------------------------+  |  <form aria-label="Edit task">
 |    | Title                                    |  |
 |    | [ Write report|                        ] |  |  <- pre-filled, focused, caret at end
@@ -269,7 +284,7 @@ items keep their read-only view, their `Edit` buttons are disabled):
 |    +------------------------------------------+  |
 |  - Call Bob                                      |
 |    Active                                        |
-|    [ Edit ]                         disabled     |
+|    [ Complete ] [ Edit ] [ Delete ]  disabled    |
 ```
 
 Validation error (Save with an empty title):
@@ -321,6 +336,76 @@ Task gone (save answered 404; form closed, list refetched without it):
 |  - Buy milk                                      |
 |  ...                                             |
 ```
+
+### Complete, reopen and delete states (S-010)
+Completing "Buy milk" under All (request in flight; every item button disabled):
+```
+|  3 tasks                            role=status  |
+|                                     role=status  |  <- edit confirmation
+|                                     role=status  |  <- action confirmation, cleared on press
+|  - Buy milk                                      |
+|    Active                                        |
+|    [ Completing... ] [ Edit ] [ Delete ]         |  <- all disabled
+|  - Write report                                  |
+|    Completed                                     |
+|    [ Reopen ] [ Edit ] [ Delete ]    disabled    |
+```
+
+After success under All (list refetched: `Loading tasks...` briefly; same order):
+```
+|  3 tasks                            role=status  |
+|  Task completed.                    role=status  |  <- action confirmation region
+|  - Buy milk                                      |
+|    Completed                                     |  <- new status text
+|    [ Reopen ] [ Edit ] [ Delete ]                |  <- "Reopen" focused (if focus was lost)
+```
+
+After success under Active (the task left the view):
+```
+|  Show: [ All ] [*Active*] [ Completed ]          |  <- pressed button focused (if lost)
+|  2 tasks                            role=status  |
+|  Task completed. It is no longer shown under     |
+|  Active.                            role=status  |
+|  - Call Bob ...                                  |  <- "Buy milk" gone
+```
+Reopen mirrors this: `Reopening...` while in flight; `Task reopened.`, plus
+` It is no longer shown under Completed.` under Completed.
+
+Delete prompt open on "Buy milk" (no request yet; other items' buttons disabled):
+```
+|  - Buy milk                                      |
+|    Active                                        |
+|    +------------------------------------------+  |  role=group, name "Confirm delete"
+|    | Delete "Buy milk"? This cannot be undone.|  |  <p id="task-<id>-delete-prompt">
+|    | [ Delete ] [ Cancel ]                    |  |  <- Cancel focused on open
+|    +------------------------------------------+  |
+|  - Write report                                  |
+|    Completed                                     |
+|    [ Reopen ] [ Edit ] [ Delete ]    disabled    |
+```
+
+Deleting (in flight): `[ Deleting... ] [ Cancel ]`, both disabled, Escape ignored.
+
+After a confirmed delete (list refetched without the task):
+```
+|  Show: [*All*] [ Active ] [ Completed ]          |  <- pressed button focused (if lost)
+|  2 tasks                            role=status  |
+|  Task deleted.                      role=status  |
+|  - Write report ...                              |
+```
+
+Error on complete/reopen/delete (no reload; item unchanged; for delete the prompt stays open):
+```
+|  3 tasks                            role=status  |
+|                                     role=status  |  <- action confirmation, empty
+|  [!] Error: Could not reach the server. Check    |  role=alert, outside any item
+|      your connection and try again.              |
+|  - Buy milk                                      |
+|    Active                                        |
+|    [ Complete ] [ Edit ] [ Delete ]              |  <- re-enabled; "Complete" focused
+```
+404 (task deleted elsewhere): same as the S-009 "Task gone" sketch: prompt closed, list
+refetched without it, `Error: This task no longer exists.`, pressed filter button focused (if lost).
 
 ## Task list behavior (S-007)
 Decisions #45-#49.
@@ -459,6 +544,13 @@ Components in `client/src/tasks/`: `TaskItem` (read-only view + `Edit` button, o
 `TasksView` (which task is open, confirmation, 404 alert, refetch and focus). Pure rules and
 texts in `task-form.ts`; the data call is `updateTask` in `client/src/api.ts`.
 
+S-010 generalizes three names used below without changing edit behavior (#59, #62):
+`editing` becomes `openItem = {id, mode: 'edit' | 'delete', tasks}` (`editingId` = the id when
+`mode === 'edit'`); the 404 alert `editAlert` becomes the shared `taskAlert`; the `Edit` button
+map becomes one button map for `edit`, `toggle`, `delete` and `confirm` buttons. "Disabled while
+another task is being edited" becomes "disabled while any item is open or a complete/reopen/delete
+request is in flight".
+
 ### Who owns what
 | State | Owner | Notes |
 |---|---|---|
@@ -583,9 +675,136 @@ PATCH is idempotent, so retrying after a lost response is safe (unlike add, #53)
   next list load shows it. Accepted (#57).
 - Last write wins; no conflict detection (out of scope).
 - Region order in TasksView: Add form section, filter, list status (`role="status"`), edit
-  confirmation (`role="status"`, always rendered), 404 alert (`role="alert"`, only when set),
+  confirmation (`role="status"`, always rendered), action confirmation (`role="status"`, always
+  rendered, S-010), task alert (`role="alert"`, only when set; edit 404 and S-010 errors),
   list error alert + Try again, list. `Task added.` and `Task updated.` live in separate regions
   and do not clear each other; both may be visible at once (each is still true).
+
+## Complete, reopen and delete (S-010)
+Decisions #58-#62. Client only: no API, schema or dependency change. Components in
+`client/src/tasks/`: `TaskItem` (buttons, or the edit form, or the delete prompt), new
+`DeleteTaskConfirm.tsx` (the prompt), `TaskList` (pass-through), `TasksView` (state, requests,
+messages, focus). Pure rules and texts in new `task-actions.ts`. Data calls `updateTask(id, {status})`
+and new `deleteTask(id)` in `client/src/api.ts`.
+
+### Who owns what (all in `TasksView`)
+| State | Kind | Notes |
+|---|---|---|
+| `openItem = {id, mode: 'edit' \| 'delete', tasks} \| null` | state | replaces `editing` (#54); derived `openId`/`mode` valid only while `state.kind === 'ready'` and `state.tasks === openItem.tasks`; cleared during render otherwise |
+| `busy = {id, action: 'status' \| 'delete'} \| null` | state | drives `disabled` and in-flight labels; not tied to the list (#59) |
+| `inFlight` | ref (boolean) | the double-submit guard, checked first by every handler |
+| `shownTasks` | ref (`Task[] \| null`) | set in `useLayoutEffect([state])` to `state.tasks` when ready, else `null`; cleanup sets `null` (also on unmount) |
+| `actionStatus` | state (string) | text of the action confirmation region |
+| `taskAlert` | state (string \| null) | replaces `editAlert`; edit 404 and all S-010 errors |
+| `pendingFocus = {id, button: 'edit' \| 'toggle' \| 'delete'} \| null` | ref | replaces `pendingFocusId` (#56) |
+| button map `Map<"<id>:<kind>", HTMLButtonElement>` | ref | kinds `edit`, `toggle`, `delete`, `confirm`; filled by callback refs (replaces the `Edit` map) |
+
+Derived during render: `openId` (id or null), `editingId = mode === 'edit' ? openId : null`,
+`deletingPromptId = mode === 'delete' ? openId : null`, and per item
+`actionsDisabled = busy !== null || openId !== null` (an open item shows the form or prompt
+instead of its buttons, so this only affects the other items).
+
+### Read-only item (`TaskItem`)
+After the title, description and status text, a row of three native `<button type="button">`:
+| Button | id | Visible text | Accessible name | `onClick` |
+|---|---|---|---|---|
+| toggle | `task-<id>-toggle` | `Complete` (Active) / `Reopen` (Completed); in flight `Completing...` / `Reopening...` | `aria-labelledby="task-<id>-toggle task-<id>-title"` -> `Complete Buy milk` | `onToggle()` |
+| edit | `task-<id>-edit` | `Edit` | as S-009 -> `Edit Buy milk` | `onEdit()` |
+| delete | `task-<id>-delete` | `Delete` | `aria-labelledby="task-<id>-delete task-<id>-title"` -> `Delete Buy milk` | `onDelete()` (opens the prompt) |
+
+All three `disabled={actionsDisabled}`. Shown for Active and Completed tasks. Each gets the
+callback ref for its kind. No checkbox, no strikethrough (#58, #49).
+
+### Delete prompt (`DeleteTaskConfirm`, when `deletingPromptId === task.id`)
+Replaces the button row (title, description and status text stay):
+```
+<div role="group" aria-label="Confirm delete" onKeyDown={...}>
+  <p id="task-<id>-delete-prompt">Delete "<title>"? This cannot be undone.</p>
+  <button type="button" id="task-<id>-delete-confirm" aria-describedby="task-<id>-delete-prompt">Delete</button>
+  <button type="button" aria-describedby="task-<id>-delete-prompt">Cancel</button>
+</div>
+```
+- Props: `task`, `deleting` (busy on this task with `delete`), `disabled` (`busy !== null`),
+  `onConfirm()`, `onCancel()`, `confirmRef` (callback ref, kind `confirm`).
+- On mount (effect): focus `Cancel`.
+- While `deleting`: confirm shows `Deleting...`; both buttons `disabled`.
+- Escape (`onKeyDown` on the group, key `Escape`, not `event.nativeEvent.isComposing`) calls
+  `onCancel()`; TasksView ignores it while `inFlight` is set.
+- The title is plain text (React escaping, #26).
+
+### Handlers (TasksView)
+`onToggle(task)`:
+1. If `inFlight.current` or `state.kind !== 'ready'`, return (no request).
+2. `startedOn = state.tasks`; `status = nextStatus(task.status)`; set `inFlight`; set
+   `busy = {id, action: 'status'}`, `actionStatus = ''`, `taskAlert = null`.
+3. `await updateTask(task.id, { status })`: body exactly `{"status":"completed"}` or `{"status":"active"}`.
+4. Settled: clear `inFlight`, `setBusy(null)`. If `shownTasks.current !== startedOn`, stop (stale:
+   no message, no reload, no focus).
+5. Success: `actionStatus = statusChangedMessage(status, filter)`, `pendingFocus = {id, button: 'toggle'}`,
+   `reload()`. The returned task is not used.
+6. Failure: see "Errors".
+
+`onDelete(id)` (opens the prompt): if `inFlight.current` or not ready, return; set
+`openItem = {id, mode: 'delete', tasks: state.tasks}`, `taskAlert = null`. No request.
+
+`onCancelDelete(id)`: if `inFlight.current`, return; `flushSync(() => setOpenItem(null))`, then
+focus the button map's `<id>:delete`. No message.
+
+`onConfirmDelete(task)`: like `onToggle` steps 1-4 with `busy = {id, action: 'delete'}` and
+`await deleteTask(task.id)`. Success: `setOpenItem(null)`, `actionStatus = 'Task deleted.'`,
+`pendingFocus = {id, button: 'delete'}` (the task is gone, so the effect falls back to the
+pressed filter button), `reload()`.
+
+`onEdit(id)` (S-009): also returns early when `inFlight.current`; sets
+`openItem = {id, mode: 'edit', tasks}`, clears the edit confirmation and `taskAlert`.
+
+Focus effect (#56, generalized): on `[state]`, when `pendingFocus.current !== null` and
+`state.kind !== 'loading'`, take it, set the ref to `null`, and only if focus is lost
+(`document.activeElement` is `null` or `body`) focus the map's `<id>:<button>` if present, else
+the pressed filter button.
+
+### Texts (`task-actions.ts`)
+| When | Text |
+|---|---|
+| complete, filter All or Completed | `Task completed.` |
+| complete, filter Active | `Task completed. It is no longer shown under Active.` |
+| reopen, filter All or Active | `Task reopened.` |
+| reopen, filter Completed | `Task reopened. It is no longer shown under Completed.` |
+| delete | `Task deleted.` |
+| prompt | `Delete "<title>"? This cannot be undone.` |
+
+Helpers: `nextStatus(status)`, `toggleLabel(status, inFlight)`, `statusChangedMessage(newStatus, filter)`,
+`TASK_DELETED_MESSAGE`, `deletePromptText(title)`, `actionErrorMessage(error)`. `TASK_GONE_MESSAGE`
+stays in `task-form.ts` and is reused. The confirmation is cleared at the start of each toggle
+and each delete confirm (so a repeat is announced again); it is not cleared by Add, Edit,
+Cancel or filter changes, and add/edit/action confirmations do not clear each other.
+
+### Errors (`actionErrorMessage`; shown `Error: <message>` in the TasksView `role="alert"`)
+| Result | Handling |
+|---|---|
+| `ApiError` 404 | `setOpenItem(null)`, `taskAlert = 'This task no longer exists.'`, `pendingFocus = {id, button}`, `reload()`; focus ends on the pressed filter button (if lost). Same for delete (not treated as success, #62) |
+| `ApiError` 401 | nothing (global handling, Flows 6); the prompt may stay open until the redirect |
+| network (status 0) | `Could not reach the server. Check your connection and try again.` |
+| any other status (incl. 400, 5xx), malformed 200, non-204 2xx on delete, non-`ApiError` | `Something went wrong. Please try again.` |
+
+For the two message rows: no reload; `flushSync(() => { setBusy(null); setTaskAlert(message) })`,
+then focus the button used: `<id>:toggle`, or `<id>:confirm` for delete (the prompt stays
+open, so the user can retry or cancel). The server message is never shown and the id is
+never echoed. The alert is cleared when the next Edit, toggle, Delete prompt or confirm starts.
+
+### Interaction with the rest of the page
+- One mutation at a time from the list: while any complete/reopen/delete request runs, every
+  item button and the prompt buttons are disabled (even if the list was replaced meanwhile).
+  The Add form and the filter stay usable. An open edit form or delete prompt disables the
+  other items' buttons.
+- Any list replacement (Add success, filter change by click or Back/Forward, reload after an
+  edit) closes an open prompt (derived `openItem`, as for edit). Try again only exists in the
+  error state, where no list is shown.
+- Late responses: a result that arrives after the list was replaced or TasksView unmounted is
+  ignored apart from clearing `busy`/`inFlight` (#59). The server may still have applied it; the
+  next load shows it. A failed refetch after success shows the S-007 list error; the
+  confirmation stays.
+- Completed tasks stay editable; Edit works before and after Complete/Reopen.
 
 ## Form behavior (login and register)
 - `<form noValidate>`: the browser's built-in validation bubbles are off so our messages are
@@ -660,7 +879,8 @@ Checks run in this order per field; the first failing one is shown.
   `Creating account...` / `Adding...` / `Saving...`). Focus is restored to the email field (auth
   forms) or the title field (add task, edit task) when the request fails.
 - **Keyboard**: native `<form>`, `<input>`, `<button type="submit">`, `<a>` (router `Link`) and a
-  `<button type="button">` for logout, the task filter, Try again, `Edit` and `Cancel`; no click handlers on non-interactive elements.
+  `<button type="button">` for logout, the task filter, Try again, `Edit`, `Cancel`, `Complete`/`Reopen`,
+  `Delete` and the delete prompt's buttons; no click handlers on non-interactive elements.
   Tab order follows the visual order (notice/alert, email, password, submit, switch link).
   Enter in any field submits. No `tabIndex` values above 0. Visible focus outline is kept
   (never `outline: none` without a replacement).
@@ -675,8 +895,8 @@ Checks run in this order per field; the first failing one is shown.
   have registered it before its text changes) and holds the loading, empty or count text.
   The error is a separate `role="alert"` container rendered only in the error state; the
   `Try again` button sits after it, not inside it. Status of each task is text, never color or
-  an icon alone. No autofocus on load; focus is moved only by Try again (above) and the edit
-  flow (S-009, below).
+  an icon alone. No autofocus on load; focus is moved only by Try again (above), the edit
+  flow (S-009, below) and the complete/reopen/delete flow (S-010, below).
 - **Add task form** (S-008): ids `add-task-title`, `add-task-description` with visible labels
   (`Title`, `Description (optional)`); field errors as in the auth forms (`<id>-error`,
   `aria-invalid="true"`, `aria-describedby`, not `role="alert"`, announced by focusing the first
@@ -701,6 +921,18 @@ Checks run in this order per field; the first failing one is shown.
   pressed filter button (both only if focus was lost). Keyboard: Tab Title, Description, Save,
   Cancel; Enter in title saves, Enter in description is a newline, Escape cancels (not while
   saving). Edited text is plain text only (#26), in the inputs and in the list.
+- **Complete, reopen, delete** (S-010): native `<button type="button">` named `Complete <title>`,
+  `Reopen <title>`, `Delete <title>` (visible word first in the name, `aria-labelledby`);
+  disabled while any item is open or a request is in flight. Delete prompt: `role="group"`
+  named `Confirm delete`, prompt text `<p>` referenced by `aria-describedby` on both its
+  buttons (`Delete`, `Cancel`). Confirmation in its own always-rendered `role="status"`; errors
+  in the shared TasksView `role="alert"`. Focus: prompt open -> Cancel; Cancel/Escape -> the
+  item's `Delete`; toggle success -> that task's toggle, or the pressed filter button if the
+  task left the view; delete success, 404 -> pressed filter button (success/404 only if focus
+  was lost); error -> the button used (toggle, or the prompt's `Delete`). Keyboard: Tab
+  through toggle, Edit, Delete per item; Enter/Space activate; Escape cancels the prompt (not
+  while deleting). Completed is shown as status text and the button word, never color alone.
+  axe: no serious/critical violations with a Completed item and with the prompt open.
 - **Contrast**: text and error text at least 4.5:1 against the background; focus indicator at
   least 3:1.
 - No autofocus on page load.

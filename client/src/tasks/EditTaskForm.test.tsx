@@ -134,11 +134,12 @@ const addButton = () =>
 const addStatus = () => within(addSection()).getByRole('status');
 const outsideRegions = () =>
   screen.getAllByRole('status').filter((el) => !addSection().contains(el));
-// Region order outside the add form: list results, then the edit confirmation (S-009).
+// Region order outside the add form: list results, the edit confirmation (S-009), then the
+// complete/reopen/delete confirmation (S-010).
 const listStatus = () => outsideRegions()[0]!;
 const editStatus = () => {
   const regions = outsideRegions();
-  expect(regions).toHaveLength(2);
+  expect(regions).toHaveLength(3);
   return regions[1]!;
 };
 const filterButton = (name: string) => screen.getByRole('button', { name });
@@ -171,7 +172,8 @@ describe('Edit button', () => {
     await renderList([task(1, { title: 'Buy milk' }), task(2, { title: 'Call Bob' })]);
     const items = within(screen.getByRole('list')).getAllByRole('listitem');
     expect(items).toHaveLength(2);
-    for (const item of items) expect(within(item).getAllByRole('button')).toHaveLength(1);
+    // Toggle, Edit, Delete (S-010).
+    for (const item of items) expect(within(item).getAllByRole('button')).toHaveLength(3);
     expect(editButton('Buy milk')).toHaveTextContent(/^Edit$/);
     expect(editButton('Call Bob')).toHaveAttribute('type', 'button');
     expect(editButton('Buy milk')).toHaveAttribute('id', 'task-1-edit');
@@ -210,6 +212,11 @@ describe('Edit button', () => {
     await openEditor(user, 'Task 2');
     expect(editButton('Task 1')).toBeDisabled();
     expect(editButton('Task 3')).toBeDisabled();
+    // S-010: Complete and Delete of the other tasks are disabled too.
+    for (const title of ['Task 1', 'Task 3']) {
+      expect(screen.getByRole('button', { name: `Complete ${title}` })).toBeDisabled();
+      expect(screen.getByRole('button', { name: `Delete ${title}` })).toBeDisabled();
+    }
     expect(screen.queryByRole('button', { name: 'Edit Task 2' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('form', { name: 'Edit task' })).toHaveLength(1);
 
@@ -217,6 +224,10 @@ describe('Edit button', () => {
     expect(editButton('Task 1')).toBeEnabled();
     expect(editButton('Task 2')).toBeEnabled();
     expect(editButton('Task 3')).toBeEnabled();
+    for (const title of ['Task 1', 'Task 2', 'Task 3']) {
+      expect(screen.getByRole('button', { name: `Complete ${title}` })).toBeEnabled();
+      expect(screen.getByRole('button', { name: `Delete ${title}` })).toBeEnabled();
+    }
   });
 
   it('clicking a disabled Edit button opens nothing', async () => {

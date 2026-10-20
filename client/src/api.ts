@@ -285,11 +285,14 @@ export async function createTask(input: { title: string; description?: string })
   return toTask(data);
 }
 
-/** Fields an edit may change (S-009, #55). `null` clears the description. No `status` yet (S-010). */
-export type TaskPatch = { title?: string; description?: string | null };
+/**
+ * Fields a PATCH may change: `title`/`description` from the edit form (S-009, #55; `null` clears
+ * the description) or `status` from the complete/reopen toggle (S-010, #60).
+ */
+export type TaskPatch = { title?: string; description?: string | null; status?: TaskStatus };
 
 /**
- * PATCH /tasks/:id (S-009, decision #55). Sends only the keys of `patch` that are not undefined
+ * PATCH /tasks/:id (S-009 #55, S-010 #60). Sends only the keys of `patch` that are not undefined
  * (`description: null` is kept). Authenticated, so a 401 goes through the global handling (#30).
  * A malformed body throws `ApiError(status, 'UNKNOWN_ERROR')`.
  */
@@ -297,9 +300,20 @@ export async function updateTask(id: number, patch: TaskPatch): Promise<Task> {
   const body: TaskPatch = {};
   if (patch.title !== undefined) body.title = patch.title;
   if (patch.description !== undefined) body.description = patch.description;
+  if (patch.status !== undefined) body.status = patch.status;
   const { status, data } = await send(`/tasks/${id}`, { method: 'PATCH', body });
   if (!isTask(data)) throw new ApiError(status, 'UNKNOWN_ERROR');
   return toTask(data);
+}
+
+/**
+ * DELETE /tasks/:id (S-010, decision #60). No request body. Authenticated, so a 401 goes through
+ * the global handling (#30). Success is only `204`; any other 2xx throws
+ * `ApiError(status, 'UNKNOWN_ERROR')`. Errors are mapped by the shared `send`.
+ */
+export async function deleteTask(id: number): Promise<void> {
+  const { status } = await send(`/tasks/${id}`, { method: 'DELETE' });
+  if (status !== 204) throw new ApiError(status, 'UNKNOWN_ERROR');
 }
 
 export function getHealth(): Promise<{ status: string }> {

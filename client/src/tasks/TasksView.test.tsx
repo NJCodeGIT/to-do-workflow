@@ -95,11 +95,11 @@ function renderHome(initialEntries: InitialEntry[] = ['/']) {
 }
 
 // The list's results region; the add form (S-008) has its own status region inside its section,
-// and the edit confirmation (S-009) is the status region right after the list's.
+// and the edit (S-009) and action (S-010) confirmations are the status regions after the list's.
 const statusRegion = () => {
   const addForm = screen.getByRole('region', { name: 'Add a task' });
   const regions = screen.getAllByRole('status').filter((el) => !addForm.contains(el));
-  expect(regions).toHaveLength(2);
+  expect(regions).toHaveLength(3);
   return regions[0]!;
 };
 const filterButton = (name: string) => screen.getByRole('button', { name });
@@ -481,6 +481,6 @@ describe('acceptance gaps (test-engineer)', () => {
     vi.mocked(api.listTasks).mockResolvedValue([task(7, { title: 'Only mine' })]);
     renderHome();
     const item = within(await screen.findByRole('list')).getByRole('listitem');
-    expect(item.textContent).toBe('Only mineActiveEdit');
+    expect(item.textContent).toBe('Only mineActiveComplete Edit Delete');
   });
 });

@@ -95,7 +95,7 @@ Dependencies needing Gate A approval: client runtime `react-router-dom` (beyond 
 Open questions: token storage location (see S-003 plan open question); whether home is a placeholder until the tasks stories land; depends on S-003 being merged (or at least its API contract approved).
 
 ## Task roadmap (S-005 to S-012)
-Added by the product-planner as a pick-list. S-005 to S-009 are planned in full below; S-010 to S-012 are still titles only. Acceptance criteria, out-of-scope notes and the task breakdown for those are written (and approved at Gate A) when a story is picked and run through `/feature-orchestrator`. IDs are final; order is the suggested build order. The `tasks` table already exists in `001_init.sql`, so no story needs a migration unless design finds a gap (S-005 needed none).
+Added by the product-planner as a pick-list. S-005 to S-009 are planned in full below; S-010 is planned in full and built; S-011 and S-012 are still short. Acceptance criteria, out-of-scope notes and the task breakdown for those are written (and approved at Gate A) when a story is picked and run through `/feature-orchestrator`. IDs are final; order is the suggested build order. The `tasks` table already exists in `001_init.sql`, so no story needs a migration unless design finds a gap (S-005 needed none).
 
 ## S-005 Task API: create and list with status filter  [Must]
 Story: As a logged-in user, I want to create tasks and list my own tasks filtered by status, so that I can capture work and see what is active or done.
@@ -303,12 +303,35 @@ Open questions (all answered at Gate A; the defaults were accepted; decisions 54
 ## S-010 Client: complete, reopen and delete a task  [Must]
 Story: As a logged-in user, I want to mark a task complete, reopen it, and delete it with a confirmation, so that my list reflects reality and stays tidy.
 Covers: complete/reopen toggle, delete with confirm, list and active filter stay correct afterwards.
-Depends on: S-006, S-007.
+Depends on: S-006, S-007 (merged), S-008, S-009 (reuse `reload()`, pending-focus and live-region patterns, decisions 47-57).
+Status: built (Gate A approved with all nine proposed defaults; design in `docs/UI_SPEC.md` "Complete, reopen and delete (S-010)", decisions #58-#62; review passed).
+Acceptance (final):
+- Each item has one toggle button, `Complete` (Active) or `Reopen` (Completed), named with the task title; keyboard operable. It sends exactly `PATCH /tasks/:id` `{status}` and nothing else (`TaskPatch` gains `status`).
+- Each item has a `Delete` button; it opens an inline confirmation naming the task with `Delete` and `Cancel` (focus on Cancel); Cancel/Escape send nothing and return focus to `Delete`; confirm sends `DELETE /tasks/:id` (new `deleteTask` in `api.ts`).
+- After success the list is refetched with `reload()` (no optimistic update): under All the item stays with new status text, under Active/Completed it leaves the view when its status no longer matches, deleted tasks are gone; filter and URL unchanged.
+- Announcements in a persistent `role="status"` region separate from the list count and add/edit regions: `Task completed.`, `Task reopened.`, `Task deleted.`; focus goes to the item's toggle button if still listed, otherwise the pressed filter button; never lost to `<body>`.
+- No double submit; item buttons disabled while a request is in flight; one open edit form or delete prompt at a time with other item buttons disabled; Add and filter change (click or Back/Forward) close an open prompt. Try again exists only in the list error state, where no list and so no prompt exists, so it has nothing to close.
+- Errors (fixed texts, `role="alert"` outside the item): 404 `This task no longer exists.` plus refetch; network `Could not reach the server. Check your connection and try again.`; 5xx/malformed `Something went wrong. Please try again.` (item unchanged, retry possible); 401 uses the global redirect; late responses after the list changed are ignored.
+- Plain-text titles; axe clean in the task list with a completed item and with the delete prompt open.
+- Tests: component tests (`api.ts` mocked) and `api.test.ts` for `updateTask` status and `deleteTask`; E2E flows in `e2e/smoke.spec.ts`: complete (gone from Active, shown in Completed, survives reload), reopen, delete cancel and confirm, axe in new states. `npm run lint`, `npm test`, `npm run typecheck`, `npm run build`, `npm run test:e2e` pass.
+- `docs/UI_SPEC.md`, `docs/DECISIONS.md`, `CLAUDE.md` updated; `docs/API_SPEC.md` unchanged.
+Out of scope: any server/API/migration change; undo or restore; bulk complete/delete or "clear completed"; optimistic updates; sorting/search/pagination/counts/dates; modal or `window.confirm` (unless chosen at Gate A); new dependencies; styling beyond usable and accessible.
+Tasks:
+1. [solution-designer] Resolve open questions; design `TaskPatch.status`, `deleteTask`, item action UI and state ownership, regions and focus; update `docs/UI_SPEC.md`, decisions from #58.
+2. [app-developer] `api.ts`: widen `TaskPatch`, add `deleteTask`.
+3. [app-developer] `client/src/tasks/`: toggle button, delete confirmation, in-flight and exclusivity rules, messages, errors, focus; wire `TasksView` to `reload()`.
+4. [test-engineer] Component and `api.test.ts` tests.
+5. [test-engineer] E2E complete, reopen, delete flows plus axe in `e2e/smoke.spec.ts`.
+6. [quality-tester] Review against criteria, layering, focus, stale responses.
+7. [document-writer] Update `CLAUDE.md`, `docs/UI_SPEC.md`, S-011 status.
+8. [delivery-operator] Release checklist; no CI change expected.
+Dependencies needing Gate A approval: none.
+Decisions (Gate A, all nine questions answered with the proposed defaults): Q1 inline delete confirm (not `window.confirm`, not a modal); Q2 labelled button, not a checkbox; Q3 all item buttons disabled during any request and while an edit form or delete prompt is open; Q4 focus to the pressed filter button when the item leaves the view and after delete; Q5 texts `Task completed.`, `Task reopened.`, `Task deleted.` plus a "no longer shown under <filter>" note when the item leaves the view; Q6 delete 404 shown as `This task no longer exists.`; Q7 one shared `role="alert"` outside the item; Q8 no extra visual cue for completed (status text only); Q9 E2E scope confirmed (complete, reopen, delete cancel and confirm, axe in the new states).
 
 ## S-011 E2E smoke tests with accessibility checks  [Should]
 Story: As a maintainer, I want a few browser tests of the main flows with automated a11y checks, so that regressions in real user journeys are caught in CI.
 Covers: Playwright + `@axe-core/playwright` (decision 10, new dev dependencies flagged at Gate A), 3-5 tests: register/login, add, complete, filter, delete; `npm run test:e2e`; optional CI job.
-Status: setup done outside the pipeline (Playwright, axe, CI `e2e` job, smoke flows for register/login/logout, route guard, add, edit, filter, user isolation, axe on login/register/task list). Still to add with S-010: complete, reopen, delete flows.
+Status: setup done outside the pipeline (Playwright, axe, CI `e2e` job, smoke flows for register/login/logout, route guard, add, edit, filter, user isolation, axe on login/register/task list). Complete, reopen and delete flows (cancel and confirm) plus axe on a completed item and on the delete prompt were added with S-010; the suite now has 12 E2E tests.
 Depends on: S-008, S-009, S-010.
 
 ## S-012 Production serving and release readiness  [Should]
